@@ -21,6 +21,7 @@ unsigned long tempo = 0;
 byte bombaAtual = 0,
      bombaErro[2] = {0, 0};
 bool necessidade;
+bool ultimaBomba=0;
 
 void setup() {
   Serial.begin(9600);
@@ -41,113 +42,122 @@ void processo()
 {
   int intervalo = millis() - tempo;
 
-  for (int i; i < NUM_BOMBA; i++)
-    bombaSt[i] = condicao(i);
-
   leitura();
   controle();
 
-  if (niv[0] <= 80)
-  {
-    if (niv[0] > 20)
-    {
-      if (bombaAtual != 3)
-      {
-        if (intervalo > TROCA / 2)
-        {
-          trocaBomba(bombaAtual);
-          tempo = millis();
-        }
-      }
-    }
-  }
+	if (bombaAtual != 3)
+	{
+		if (intervalo > TROCA / 2)
+		{
+			trocaBomba(bombaAtual);
+			tempo = millis();
+		}
+	}
 }
 
 void leitura()
 {
-  temp[0] = analogRead(TEMP1);
-  temp[1] = analogRead(TEMP2);
-  corrente = analogRead(CORRENTE);
-  vazao = analogRead(VAZAO);
+	niv[0] = analogRead(NV_S);
+	niv[1] = analogRead(NV_I);
+	temp[0] = analogRead(TEMP1);
+	temp[1] = analogRead(TEMP2);
+	corrente = analogRead(CORRENTE);
+	vazao = analogRead(VAZAO);
 
-  temp[0] = map(temp[0], 0, 1023, 20, 100);
-  temp[1] = map(temp[1], 0, 1023, 20, 100);
-  corrente = map(temp[1], 0, 1023, 0, 30);
-  vazao = map(vazao, 0, 1023, 0, 8);
+	niv[0] = map(niv[0], 0, 1023, 0, 100);
+	niv[1] = map(niv[1], 0, 1023, 0, 100);
+	temp[0] = map(temp[0], 0, 1023, 20, 100);
+	temp[1] = map(temp[1], 0, 1023, 20, 100);
+	corrente = map(corrente, 0, 1023, 0, 30);
+	vazao = map(vazao, 0, 1023, 0, 8);
 }
 
 void controle()
 {
-  
+	//controla a ativacao das bombas (bombaAtual) 
+	if(niv[0] < 20)
+		bombaAtual = 2;
+	else
+		if(niv[1] >= 80)
+			bombaAtual = 3;
+		else if(niv[1] < 20)
+		{
+			bombaAtual = !ultimaBomba;
+			ultimaBomba = bombaAtual;
+		}
+		else
+			if(bombaAtual != 3)
+				bombaSt[bombaAtual] = condicao(bombaAtual);
+
 }
 
 bool trocaBomba()
 {
-  bool sucesso;
-  byte bombaDesl;
+	bool sucesso;
+	byte bombaDesl;
 
-  if (bombaAtual == 0)
-    bombaDesl = 1;
-  else if (bombaAtual == 1)
-    bombaDesl = 0;
-  else
-    bombaDesl = 2;
+	if (bombaAtual == 0)
+		bombaDesl = 1;
+	else if (bombaAtual == 1)
+		bombaDesl = 0;
+	else
+		bombaDesl = 2;
 
-  if (bombaCh[bombaDesl] == true)
-  {
-    ligarBomba(bombaDesl);
-    bombaAtual = bombaDesl;
-  }
-  else if (bombaCh[bombaAtual] == true)
-    ligarBomba(bombaAtual);
+	if (bombaCh[bombaDesl] == true)
+	{
+		ligarBomba(bombaDesl);
+		bombaAtual = bombaDesl;
+	}
+	else if (bombaCh[bombaAtual] == true)
+		ligarBomba(bombaAtual);
 
 
-  return sucesso;
+	return sucesso;
 }
 
 void ligarBomba(byte bomba)
 {
-  if (bomba == 0)
-  {
-    digitalWrite(led0, HIGH);
-    digitalWrite(led1, LOW);
-    digitalWrite(ledE, LOW);
-  }
-  else if (bomba == 1)
-  {
-    digitalWrite(led0, LOW);
-    digitalWrite(led1, HIGH);
-    digitalWrite(ledE, LOW);
-  }
-  else if (bomba == 2)
-  {
-    digitalWrite(led0, LOW);
-    digitalWrite(led1, LOW);
-    digitalWrite(ledE, HIGH);
-  }
-  else if (bomba == 3)
-  {
-    digitalWrite(led0, LOW);
-    digitalWrite(led1, LOW);
-    digitalWrite(ledE, LOW);
-  }
+	if (bomba == 0)
+	{
+		digitalWrite(led0, HIGH);
+		digitalWrite(led1, LOW);
+		digitalWrite(ledE, LOW);
+	}
+	else if (bomba == 1)
+	{
+		digitalWrite(led0, LOW);
+		digitalWrite(led1, HIGH);
+		digitalWrite(ledE, LOW);
+	}
+	else if (bomba == 2)
+	{
+		digitalWrite(led0, LOW);
+		digitalWrite(led1, LOW);
+		digitalWrite(ledE, HIGH);
+	}
+	else if (bomba == 3)
+	{
+		digitalWrite(led0, LOW);
+		digitalWrite(led1, LOW);
+		digitalWrite(ledE, LOW);
+	}
 
 }
 
 bool condicao(int bomba)
 {
-  bool cond;
+	bool cond;
 
-  if (temp[bomba] > 75)
-    cond = false;
-  else if (corrente > 20)
-    cond = false;
-  else if (vazao != 0)
-    cond = false;
-  else
-    cond = true;
+	if (temp[bomba] > 75)
+		cond = false;
+	else if (corrente > 20)
+		cond = false;
+	else if (vazao != 0)
+		cond = false;
+	else
+		cond = true;
 
-  return cond;
+	return cond;
 }
 
 
