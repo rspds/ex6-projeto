@@ -25,7 +25,7 @@ float niv[2];
 float corrente;
 float vazao;
 //int dados[4] = {0,0,0,0}; //1 - temp1; 2 - temp2; 3 - corrente; 4 - vazao
-bool bombaSt[NUM_BOMBA] = {1, 1}, //status
+bool bombaSt[NUM_BOMBA] = {1, 1}; //status
 unsigned long tempo = 0;
 byte bombaAtual = 3,
      bombaErro[2] = {0, 0};
