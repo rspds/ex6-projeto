@@ -33,6 +33,7 @@ byte bombaAtual = 3,
 bool necessidade = false;
 bool ultimaBomba = 0;
 bool flag = 0;
+bool trava = 0;
 
 void setup() {
 	Serial.begin(9600);
@@ -82,16 +83,13 @@ void processo()
 {
 
 	leitura();
-	if(bombaErro[0] < TOLERANCIA || bombaErro[1] < TOLERANCIA)
-	{
-		controle();
+	controle();
 
-		if (flag)
-		{
-			Serial.println("ENTROUUUUU!!!");
-			trocaBomba();
-			flag = 0x00;
-		}
+	if (flag)
+	{
+		Serial.println("ENTROUUUUU!!!");
+		trocaBomba();
+		flag = 0x00;
 	}
 }
 
@@ -121,32 +119,38 @@ void controle()
 		bombaAtual = 2;
 	else
 	{
-		if(niv[1] >= 80)
-		{
+		if(trava)
 			bombaAtual = 3;
-			necessidade = false;
-		}
-		else if(niv[1] < 20 && necessidade == false)
-		{
-			bombaAtual = 3;
-			necessidade = true;
-			bombaAtual = !ultimaBomba;
-			ultimaBomba = bombaAtual;
-		}
-		else if(necessidade == true && bombaAtual == 3)
-		{
-			bombaAtual = !ultimaBomba;
-			ultimaBomba = bombaAtual;
-		}
 		else
-			if(bombaAtual == 2)
-				bombaAtual = 3;
-			else if(bombaAtual != 3)
+		{
+			if(niv[1] >= 80)
 			{
-				bombaSt[bombaAtual] = condicao(bombaAtual);
-				if(bombaSt[bombaAtual] == false)
-					bombaErro[bombaAtual]++;
+				bombaAtual = 3;
+				necessidade = false;
 			}
+			else if(niv[1] < 20 && necessidade == false)
+			{
+				bombaAtual = 3;
+				necessidade = true;
+				bombaAtual = !ultimaBomba;
+				ultimaBomba = bombaAtual;
+			}
+			else if(necessidade == true && bombaAtual == 3)
+			{
+				bombaAtual = !ultimaBomba;
+				ultimaBomba = bombaAtual;
+			}
+			else
+				if(bombaAtual == 2)
+					bombaAtual = 3;
+				else if(bombaAtual != 3)
+				{
+					bombaSt[bombaAtual] = condicao(bombaAtual);
+
+					if(bombaSt[bombaAtual] == false)
+						bombaErro[bombaAtual]++;
+				}
+		}
 	}
 
 	if(bombaAtual != compara || intervalo > TROCA / 2)
@@ -201,7 +205,10 @@ bool trocaBomba()
 		return true;
 	}
 	else
+	{
 		ligarBomba(3);
+		trava = true;
+	}
 
 
 	return false;
