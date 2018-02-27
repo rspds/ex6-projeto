@@ -2,13 +2,14 @@
 #define led0 10
 #define led1 11
 #define ledE 12
-#define TROCA 120000
+#define TROCA 20000
 #define TEMP1 A2
 #define TEMP2 A3
 #define CORRENTE A4
 #define VAZAO A5
 #define NV_S A0
 #define NV_I A1
+#define TOLERANCIA 2
 
 
 void processo();
@@ -28,25 +29,27 @@ float vazao;
 bool bombaSt[NUM_BOMBA] = {1, 1}; //status
 unsigned long tempo = 0;
 byte bombaAtual = 3,
-     bombaErro[2] = {0, 0};
+		 bombaErro[2] = {0, 0};
 bool necessidade = false;
 bool ultimaBomba = 0;
+bool flag = 0;
 
 void setup() {
-  Serial.begin(9600);
-  for (int i = 0; i < 3; i++)
-    pinMode(i + 10, OUTPUT);
+	Serial.begin(9600);
+	for (int i = 0; i < 3; i++)
+		pinMode(i + 10, OUTPUT);
 }
 
 void loop() {
 
 	processo();
 	impressao();
-
+	delay(1000);
 }
 
 void impressao()
 {
+	Serial.println("=======================================");
 	Serial.print("Temperatura Bomba 1: ");
 	Serial.println(temp[0]);
 	Serial.print("Temperatira Bomba 2: ");
@@ -77,22 +80,25 @@ void impressao()
 
 void processo()
 {
-  int intervalo = millis() - tempo;
 
-  leitura();
-  controle();
-
-	if (intervalo > TROCA / 2 || !bombaSt[bombaAtual])
+	leitura();
+	if(bombaErro[0] < TOLERANCIA || bombaErro[1] < TOLERANCIA)
 	{
-		trocaBomba();
-		tempo = millis();
+		controle();
+
+		if (flag)
+		{
+			Serial.println("ENTROUUUUU!!!");
+			trocaBomba();
+			flag = 0x00;
+		}
 	}
 }
 
 void leitura()
 {
-	niv[0] = analogRead(NV_S);
-	niv[1] = analogRead(NV_I);
+	niv[0] = analogRead(NV_I);
+	niv[1] = analogRead(NV_S);
 	temp[0] = analogRead(TEMP1);
 	temp[1] = analogRead(TEMP2);
 	corrente = analogRead(CORRENTE);
@@ -108,10 +114,13 @@ void leitura()
 
 void controle()
 {
+	int intervalo = millis() - tempo;
+	byte compara = bombaAtual;
 	//controla a ativacao das bombas (bombaAtual) 
 	if(niv[0] < 20)
 		bombaAtual = 2;
 	else
+	{
 		if(niv[1] >= 80)
 		{
 			bombaAtual = 3;
@@ -119,30 +128,52 @@ void controle()
 		}
 		else if(niv[1] < 20 && necessidade == false)
 		{
+			bombaAtual = 3;
 			necessidade = true;
 			bombaAtual = !ultimaBomba;
 			ultimaBomba = bombaAtual;
 		}
+		else if(necessidade == true && bombaAtual == 3)
+		{
+			bombaAtual = !ultimaBomba;
+			ultimaBomba = bombaAtual;
+		}
 		else
-			if(bombaAtual != 3)
+			if(bombaAtual == 2)
+				bombaAtual = 3;
+			else if(bombaAtual != 3)
+			{
 				bombaSt[bombaAtual] = condicao(bombaAtual);
 				if(bombaSt[bombaAtual] == false)
 					bombaErro[bombaAtual]++;
+			}
+	}
 
+	if(bombaAtual != compara || intervalo > TROCA / 2)
+	{
+		flag = 0x01;
+		tempo = millis();
+	}
+	else if (bombaAtual != 2 && bombaAtual !=3)
+		if(!bombaSt[bombaAtual])
+		{
+			flag = 0x01;
+			tempo = millis();
+		}
 }
 /*
-falta algo tlg
-algo
-implementar a ativacao inicial das bombas de algum jeito que eu ainda nao sei
-ver como vai ligar o led do erro na trocaBomba()
-e por falat nisso, tenhi minhas duvidas se esse é mesmo o caminho mais correto a seguir
-"priorizar a trocaBomba() pra fazer tudo"
-sinto que está faltando uma ou duas funcoes pra o codigo ficar estavel
-e depois pra o codigo ficar enchuto vai poder reduzir cerca de 22% do codigo em
-partes de funcoes ou 2 funcoes jogadas no lixo mesmo
+	 falta algo tlg
+	 algo
+	 implementar a ativacao inicial das bombas de algum jeito que eu ainda nao sei
+	 ver como vai ligar o led do erro na trocaBomba()
+	 e por falat nisso, tenhi minhas duvidas se esse é mesmo o caminho mais correto a seguir
+	 "priorizar a trocaBomba() pra fazer tudo"
+	 sinto que está faltando uma ou duas funcoes pra o codigo ficar estavel
+	 e depois pra o codigo ficar enchuto vai poder reduzir cerca de 22% do codigo em
+	 partes de funcoes ou 2 funcoes jogadas no lixo mesmo
 
-a variavel necessidade ja e uma chaveeeee!!!!
-*/
+	 a variavel necessidade ja e uma chaveeeee!!!!
+ */
 bool trocaBomba()
 {
 	byte bombaDesl;
@@ -151,23 +182,26 @@ bool trocaBomba()
 		bombaDesl = 1;
 	else if (bombaAtual == 1)
 		bombaDesl = 0;
+	//if(necessidade == true)
 	else
 	{
 		ligarBomba(bombaAtual);
 		return true;	
 	}
 
-	if (bombaErro[bombaDesl] >= 2)
+	if (bombaErro[bombaDesl] < TOLERANCIA)
 	{
 		ligarBomba(bombaDesl);
 		bombaAtual = bombaDesl;
 		return true;
 	}
-	else if (bombaErro[bombaAtual] >= 2)
+	else if (bombaErro[bombaAtual] < TOLERANCIA)
 	{
 		ligarBomba(bombaAtual);
 		return true;
 	}
+	else
+		ligarBomba(3);
 
 
 	return false;
@@ -214,7 +248,7 @@ bool condicao(int bomba)
 		cond = false;
 	else if (corrente > 20)
 		cond = false;
-	else if (vazao != 0)
+	else if (vazao == 0)
 		cond = false;
 	else
 		cond = true;
