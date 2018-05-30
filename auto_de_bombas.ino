@@ -15,10 +15,10 @@
 #define TEMPODIAS 1
 #define ERROMAX 2
 #define ERROZERO 0
-#define CORRENTEMIN 0.5
+#define CORRENTEMIN 0
 
 //====================================================================
-#define baud 9600 // velocidade
+long baud = 9600; // velocidade
 #define timeout 1000 // Tempo máximo que o mestre espera a resposta do escravo
 #define polling 200 // taxa que o mestre requisita os escravos
 #define retry_count 10 //Caso haja um erro, quantas tentativas de comunicação ele vai fazer
@@ -50,7 +50,7 @@ bool ligarBomba(bool chaveB, bool erro);
 bool condicao();
 void conf_padrao();
 void limpa_erro();
-void somaErro(bombaPorta);
+void somaErro(bool bombaPorta);
 
 typedef struct st_historico{
 	byte dia;
@@ -60,17 +60,18 @@ typedef struct st_historico{
 	char tipo;
 }t_hist;
 
-float tempB1, tempB2;
-float nivInf; nivSup;
-float corrente;
 bool trava = false;
 bool bomba = 0;
+float tempB1, tempB2;
+float nivInf, nivSup;
+float corrente;
+unsigned long tempo = 0;
 
 void setup() {
 	modbus_construct (&packets[PACKET1],1,PRESET_SINGLE_REGISTER,0,1,0); 
 	modbus_construct (&packets[PACKET2],1,PRESET_SINGLE_REGISTER,1,1,1);
 	modbus_construct (&packets[PACKET3],1,PRESET_SINGLE_REGISTER,2,1,2);
-	modbus_construct (&packets[PACKET4],1,READ_HOLDING_REGISTER,3,1,3);
+	modbus_construct (&packets[PACKET4],1,READ_HOLDING_REGISTERS,3,1,3);
 
 	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
 
@@ -97,6 +98,8 @@ void impressao()
 
 void processo()
 {
+	int intervalo = millis() - tempo;
+
 	leitura();
 	controle();
 
@@ -106,23 +109,21 @@ void processo()
 
 void leitura()
 {
-	niv[0] = analogRead(NV_I);
-	niv[1] = analogRead(NV_S);
-	temp[0] = analogRead(TEMP1);
-	temp[1] = analogRead(TEMP2);
+	nivInf = analogRead(NV_I);
+	nivSup = analogRead(NV_S);
+	tempB1 = analogRead(TEMP1);
+	tempB2 = analogRead(TEMP2);
 	corrente = analogRead(CORRENTE);
 
-	niv[0] = map(nivInf, 0, 1023, 0, 100);
-	niv[1] = map(nivSup, 0, 1023, 0, 100);
-	temp[0] = map(tempB1, 0, 1023, 20, 100);
-	temp[1] = map(tempB2, 0, 1023, 20, 100);
+	nivInf = map(nivInf, 0, 1023, 0, 100);
+	nivSup = map(nivSup, 0, 1023, 0, 100);
+	tempB1 = map(tempB1, 0, 1023, 20, 100);
+	tempB2 = map(tempB2, 0, 1023, 20, 100);
 	corrente = map(corrente, 0, 1023, 0, 30);
 }
 
 void controle()
 {
-	int intervalo = millis() - tempo;
-
 	if(nivInf < 20)
 		chaveBomba('E');
 	else
@@ -261,8 +262,6 @@ bool condicao()
 		cond = false;
 	else if (corrente > 20)
 		cond = false;
-	else if (vazao == 0)
-		cond = false;
 	else
 		cond = true;
 
@@ -308,11 +307,11 @@ void limpa_erro()
 	EEPROM.write(5, ERROZERO);
 }
 
-void somaErro(bombaPorta)
+void somaErro(bool bombaPorta)
 {
 	byte x;
 
-	x = EEPROM.read(bombaPorta + 4)
+	x = EEPROM.read(bombaPorta + 4);
 
 	x++;
 
