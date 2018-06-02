@@ -26,6 +26,7 @@ long baud = 9600; // velocidade
 #define TOTAL_NO_OF_REGISTER 5 // número de registradores que vai ser utilizado
 //====================================================================
 
+#include <OneWire.h>
 #include <EEPROM.h>
 #include <SimpleModbusMaster_DUE.h> // incluindo biblioteca do mestre
 
@@ -35,6 +36,9 @@ enum { PACKET1,
 	PACKET4,
 	TOTAL_NO_OF_PACKETS
 };
+
+OneWire  dsTemp1(2);
+OneWire  dsTemp2(3);
 
 Packet packets[TOTAL_NO_OF_PACKETS]; //Cria um array com os pacotes que estão no enum
 
@@ -51,6 +55,10 @@ bool condicao();
 void conf_padrao();
 void limpa_erro();
 void somaErro(bool bombaPorta);
+float lerTemp1();
+float lerTemp2();
+float conversao(int16_t raw, byte data[], byte type_s);
+byte chip(byte addr);
 
 typedef struct st_historico{
 	byte dia;
@@ -111,14 +119,16 @@ void leitura()
 {
 	nivInf = analogRead(NV_I);
 	nivSup = analogRead(NV_S);
-	tempB1 = analogRead(TEMP1);
-	tempB2 = analogRead(TEMP2);
+	tempB1 = lerTemp1();
+	tempB2 = lerTemp2();
+	//tempB1 = analogRead(TEMP1);
+	//tempB2 = analogRead(TEMP2);
 	corrente = analogRead(CORRENTE);
 
 	nivInf = map(nivInf, 0, 1023, 0, 100);
 	nivSup = map(nivSup, 0, 1023, 0, 100);
-	tempB1 = map(tempB1, 0, 1023, 20, 100);
-	tempB2 = map(tempB2, 0, 1023, 20, 100);
+	//tempB1 = map(tempB1, 0, 1023, 20, 100);
+	//tempB2 = map(tempB2, 0, 1023, 20, 100);
 	corrente = map(corrente, 0, 1023, 0, 30);
 }
 
@@ -320,12 +330,144 @@ void somaErro(bool bombaPorta)
 	return;
 }
 
+float lerTemp1()
+{
+  byte i;
+  byte type_s;
+  byte data[12];
+  byte addr[8];
+  float celsius;
+	bool flag = true;
 
+	do
+	{
+		dsTemp1.reset_search();
 
+		if(!dsTemp1.search(addr))
+			return -1;
 
+		if (OneWire::crc8(addr, 7) != addr[7])
+			continue;
 
+		type_s = chip(addr[0]);
 
+		if(type_s == -1)
+			return -1;
 
+		dsTemp1.reset();
+		dsTemp1.select(addr);
+		dsTemp1.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
+
+		delay(1000); 
+
+		if (dsTemp1.reset() == false)
+			return -1;
+		dsTemp1.select(addr);    
+		dsTemp1.write(0xBE);         // Read Scratchpad
+
+		for ( i = 0; i < 9; i++)    // we need 9 bytes
+			data[i] = dsTemp1.read();
+		if (OneWire::crc8(data, 8) != data[8])
+			continue;
+
+		flag = false;
+
+	}while(flag);
+
+	int16_t raw = (data[1] << 8) | data[0];
+
+  celsius = conversao(raw, data, type_s);
+
+	return celsius;
+}
+
+float lerTemp2()
+{
+	byte i;
+	byte type_s;
+	byte data[12];
+	byte addr[8];
+	float celsius;
+	bool flag = true;
+
+	do
+	{
+		dsTemp2.reset_search();
+
+		if(!dsTemp2.search(addr))
+			return -1;
+
+		if (OneWire::crc8(addr, 7) != addr[7])
+			continue;
+
+		type_s = chip(addr[0]);
+
+		if(type_s == -1)
+			return -1;
+		
+		dsTemp2.reset();
+		dsTemp2.select(addr);
+		dsTemp2.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
+
+		delay(1000); 
+
+		if (dsTemp2.reset() == false)
+			return -1;
+		dsTemp2.select(addr);    
+		dsTemp2.write(0xBE);         // Read Scratchpad
+
+		for ( i = 0; i < 9; i++)    // we need 9 bytes
+			data[i] = dsTemp2.read();
+
+		if (OneWire::crc8(data, 8) != data[8])
+			continue;
+
+		flag = false;
+
+	}while(flag);
+
+	int16_t raw = (data[1] << 8) | data[0];
+
+  celsius = conversao(raw, data, type_s);
+
+	return celsius;
+}
+
+float conversao(int16_t raw, byte data[], byte type_s)
+{
+	if (type_s) {
+		raw = raw << 3; // 9 bit resolution default
+		if (data[7] == 0x10) {
+			raw = (raw & 0xFFF0) + 12 - data[6];
+		}
+	} else {
+		byte cfg = (data[4] & 0x60);
+		if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
+		else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
+		else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
+	}
+	return (float)raw / 16.0;
+}
+
+byte chip(byte addr)
+{
+	byte type_s;
+
+		switch (addr[0]) {
+			case 0x10:
+				type_s = 1;
+				break;
+			case 0x28:
+				type_s = 0;
+				break;
+			case 0x22:
+				type_s = 0;
+				break;
+			default:
+				return -1;
+		}
+	return type_s;
+}
 
 
 
