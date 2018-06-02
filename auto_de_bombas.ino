@@ -37,8 +37,8 @@ enum { PACKET1,
 	TOTAL_NO_OF_PACKETS
 };
 
-OneWire  dsTemp1(2);
-OneWire  dsTemp2(3);
+OneWire  dsTemp1(TEMP1);
+OneWire  dsTemp2(TEMP2);
 
 Packet packets[TOTAL_NO_OF_PACKETS]; //Cria um array com os pacotes que estão no enum
 
@@ -453,7 +453,7 @@ byte chip(byte addr)
 {
 	byte type_s;
 
-		switch (addr[0]) {
+		switch (addr) {
 			case 0x10:
 				type_s = 1;
 				break;
