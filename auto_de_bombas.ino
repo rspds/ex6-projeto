@@ -102,6 +102,63 @@ void loop() {
 
 void impressao()
 {
+/*
+	 EEPROM
+
+	 1 - tempo de duração [dias]
+	 2 - min corrente
+	 3 - max temp
+	 4 - erro b1
+	 5 - erro b2
+	 6 - ultima bomba ativa
+	 7 - 
+	 8 - 
+	 9 - 
+	 10 - 
+	 .
+	 .
+	 .
+	 100 a 299 - Historico de erros B1
+	 300 a 499 - Historico de erros B2
+
+ */
+
+	Serial.println("=======================================");
+	Serial.print("Temperatura Bomba 1: ");
+	Serial.println(tempB1);
+	Serial.print("Temperatira Bomba 2: ");
+	Serial.println(tempB2);
+	Serial.print("Nivel Inferior: ");
+	Serial.println(nivInf);
+	Serial.print("Nivel Superior: ");
+	Serial.println(nivSup);
+	Serial.print("Corrente: ");
+	Serial.println(corrente);
+//	Serial.print("Vazao: ");
+//	Serial.println(vazao);
+//	Serial.print("Status da Bomba 1: ");
+//	Serial.println(bombaSt[0]);
+//	Serial.print("Status da Bomba 2: ");
+//	Serial.println(bombaSt[1]);
+	Serial.print("Bomba: ");
+	Serial.println(bomba);
+	Serial.print("Qtd de Erro Bomba 1: ");
+	Serial.println(EEPROM.read(4));
+	Serial.print("Qtd de Erro Bomba 2: ");
+	Serial.println(EEPROM.read(5));
+//	Serial.print("necessidade: ");
+//	Serial.println(necessidade);
+	Serial.print("Ultima Bomba Ativa: ");
+	Serial.println(EEPROM.read(6));
+	Serial.print("Tempo de Duração [Dias]: ");
+	Serial.println(EEPROM.read(1));
+	Serial.print("Corrente Minima: ");
+	Serial.println(EEPROM.read(2));
+	Serial.print("Temperatura Maxima: ");
+	Serial.println(EEPROM.read(3));
+	Serial.print("Funcao chaveBomba: ");
+	Serial.println(chaveBomba('?'));
+
 }
 
 void processo()
@@ -119,16 +176,16 @@ void leitura()
 {
 	nivInf = analogRead(NV_I);
 	nivSup = analogRead(NV_S);
-	tempB1 = lerTemp1();
-	tempB2 = lerTemp2();
-	//tempB1 = analogRead(TEMP1);
-	//tempB2 = analogRead(TEMP2);
+	//tempB1 = lerTemp1();
+	//tempB2 = lerTemp2();
+	tempB1 = analogRead(TEMP1);
+	tempB2 = analogRead(TEMP2);
 	corrente = analogRead(CORRENTE);
 
 	nivInf = map(nivInf, 0, 1023, 0, 100);
 	nivSup = map(nivSup, 0, 1023, 0, 100);
-	//tempB1 = map(tempB1, 0, 1023, 20, 100);
-	//tempB2 = map(tempB2, 0, 1023, 20, 100);
+	tempB1 = map(tempB1, 0, 1023, 20, 100);
+	tempB2 = map(tempB2, 0, 1023, 20, 100);
 	corrente = map(corrente, 0, 1023, 0, 30);
 }
 
@@ -145,11 +202,15 @@ void controle()
 		else
 		{
 			if(chaveBomba('?') == 'A')
+			{
 				if(condicao() == false)
 				{
 					somaErro(bomba);
 					trocaBomba();
 				}
+			}
+			else
+				chaveBomba('D');
 		}
 	}
 }
@@ -270,7 +331,7 @@ bool condicao()
 		cond = false;
 	if (bomba == 1 && tempB2 > 75)
 		cond = false;
-	else if (corrente > 20)
+	else if (corrente > 0)
 		cond = false;
 	else
 		cond = true;
