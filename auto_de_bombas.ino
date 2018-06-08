@@ -71,7 +71,6 @@ typedef struct st_historico{
 	char tipo;
 }t_hist;
 
-bool releSeguranca;
 bool trava = false;
 bool bomba = 0;
 float tempB1, tempB2;
@@ -87,14 +86,13 @@ void setup() {
 
 	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
 
-
 	conf_padrao();
 
+  releSeguranca(!trava);
 
 	Serial.begin(9600);
 	for (int i = 0; i < 3; i++)
 		pinMode(i + 10, OUTPUT);
-
 }
 
 void loop() {
@@ -139,14 +137,12 @@ void impressao()
 	Serial.println(EEPROM.read(2));
 	Serial.print("Temperatura Maxima: ");
 	Serial.println(EEPROM.read(3));
-	Serial.print("Funcao chaveBomba: ");
-	Serial.println(chaveBomba('?'));
-
+  Serial.print("Trava: ");
+  Serial.println(trava);
 }
 
 void processo()
 {
-	int intervalo = millis() - tempo;
 
 	leitura();
 	controle();
@@ -171,7 +167,9 @@ void leitura()
 
 void controle()
 {
-	if(condicao() == false)
+  int intervalo = millis() - tempo;
+
+	if(condicao() == false && trava == false)
 	{
 		somaErro(bomba);
 		trocaBomba();
@@ -237,9 +235,9 @@ void ledErro(bool erro)
 void releSeguranca(bool chave)
 {
 	if (chave == true)
-		digitalWrite(ledE, HIGH);
+		digitalWrite(led1, HIGH);
 	else
-		digitalWrite(ledE, LOW);
+		digitalWrite(led1, LOW);
 
 	return;
 }
@@ -247,9 +245,9 @@ void releSeguranca(bool chave)
 void releRevesamento()
 {
 	if (bomba == 0)
-		digitalWrite(ledE, HIGH);
+		digitalWrite(led0, HIGH);
 	else
-		digitalWrite(ledE, LOW);
+		digitalWrite(led0, LOW);
 
 	return;
 }
@@ -262,7 +260,7 @@ bool condicao()
 		cond = false;
 	else if (bomba == 1 && tempB2 > 75)
 		cond = false;
-	else if (corrente > 0)
+	else if (corrente < 20)
 		cond = false;
 	else
 		cond = true;
