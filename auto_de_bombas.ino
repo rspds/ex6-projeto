@@ -50,8 +50,11 @@ void leitura();
 void controle();
 char chaveBomba(char modo);
 bool trocaBomba();
-bool ligarBomba(bool chaveB, bool erro);
+void ledErro(bool erro);
+void releSeguranca(bool chave);
+void releRevesamento();
 bool condicao();
+bool aviso();
 void conf_padrao();
 void limpa_erro();
 void somaErro(bool bombaPorta);
@@ -68,6 +71,7 @@ typedef struct st_historico{
 	char tipo;
 }t_hist;
 
+bool releSeguranca;
 bool trava = false;
 bool bomba = 0;
 float tempB1, tempB2;
@@ -102,27 +106,6 @@ void loop() {
 
 void impressao()
 {
-/*
-	 EEPROM
-
-	 1 - tempo de duração [dias]
-	 2 - min corrente
-	 3 - max temp
-	 4 - erro b1
-	 5 - erro b2
-	 6 - ultima bomba ativa
-	 7 - 
-	 8 - 
-	 9 - 
-	 10 - 
-	 .
-	 .
-	 .
-	 100 a 299 - Historico de erros B1
-	 300 a 499 - Historico de erros B2
-
- */
-
 	Serial.println("=======================================");
 	Serial.print("Temperatura Bomba 1: ");
 	Serial.println(tempB1);
@@ -167,9 +150,6 @@ void processo()
 
 	leitura();
 	controle();
-
-	if(intervalo > TROCA * TEMPODIAS)
-		trocaBomba();
 }
 
 void leitura()
@@ -191,61 +171,18 @@ void leitura()
 
 void controle()
 {
-	if(nivInf < 20)
-		chaveBomba('E');
+	if(condicao() == false)
+	{
+		somaErro(bomba);
+		trocaBomba();
+	}
+	if(aviso() == false)
+		ledErro(true);
 	else
-	{
-		if(nivSup >= 80)
-			chaveBomba('D');
-		else if(nivSup <= 20 && chaveBomba('?') == 'D')
-			chaveBomba('A');
-		else
-		{
-			if(chaveBomba('?') == 'A')
-			{
-				if(condicao() == false)
-				{
-					somaErro(bomba);
-					trocaBomba();
-				}
-			}
-			else
-				chaveBomba('D');
-		}
-	}
-}
+		ledErro(false);
 
-char chaveBomba(char modo)
-{
-	//a partir das letras, ele faz os comandos
-	char resposta;
-
-	switch(modo)
-	{
-		case 'E':
-			ligarBomba(false, true);
-			resposta = 'E';
-			break;
-
-		case 'A':
-			if(chaveBomba('?') == 'D')
-				ligarBomba(true, false);
-			resposta = 'A';
-			break;
-
-		case 'D':
-			ligarBomba(false, false);
-			resposta = 'D';
-			break; 
-
-		case '?':
-			if(digitalRead(led0) == HIGH || digitalRead(led1) == HIGH)
-				resposta = 'A';
-			else
-				resposta = 'D';
-			break;
-	}
-	return resposta;
+	if(intervalo > TROCA * TEMPODIAS)
+		trocaBomba();
 }
 
 bool trocaBomba()
@@ -276,13 +213,10 @@ bool trocaBomba()
 			else
 				trava = true;
 		}
-	}	
-
-	if(chaveBomba('?') == 'A')
-	{
-		chaveBomba('D');
-		chaveBomba('A');
 	}
+
+	releSeguranca(!trava);
+  releRevesamento();
 
 	EEPROM.write(6, bomba);
 	tempo = millis();
@@ -290,37 +224,34 @@ bool trocaBomba()
 	return !trava; //retorna se o sistema ainda está em funcionamento
 }
 
-bool ligarBomba(bool chaveB, bool erro)
+void ledErro(bool erro)
 {
 	if (erro == true)
-	{
-		digitalWrite(led0, LOW);
-		digitalWrite(led1, LOW);
 		digitalWrite(ledE, HIGH);
-		return true;
-	}
-	else if (trava == true || chaveB == false)
-	{
-		digitalWrite(led0, LOW);
-		digitalWrite(led1, LOW);
+	else
 		digitalWrite(ledE, LOW);
-		return true;
-	}
-	else if (bomba == 0)
-	{
-		digitalWrite(led0, HIGH);
-		digitalWrite(led1, LOW);
+
+	return;
+}
+
+void releSeguranca(bool chave)
+{
+	if (chave == true)
+		digitalWrite(ledE, HIGH);
+	else
 		digitalWrite(ledE, LOW);
-		return true;
-	}
-	else if (bomba == 1)
-	{
-		digitalWrite(led0, LOW);
-		digitalWrite(led1, HIGH);
+
+	return;
+}
+
+void releRevesamento()
+{
+	if (bomba == 0)
+		digitalWrite(ledE, HIGH);
+	else
 		digitalWrite(ledE, LOW);
-		return true;
-	}
-	return false;
+
+	return;
 }
 
 bool condicao()
@@ -329,9 +260,23 @@ bool condicao()
 
 	if (bomba == 0 && tempB1 > 75)
 		cond = false;
-	if (bomba == 1 && tempB2 > 75)
+	else if (bomba == 1 && tempB2 > 75)
 		cond = false;
 	else if (corrente > 0)
+		cond = false;
+	else
+		cond = true;
+
+	return cond;
+}
+
+bool aviso()
+{
+	bool cond;
+
+	if (nivSup > 75)
+		cond = false;
+	else if (nivInf < 20)
 		cond = false;
 	else
 		cond = true;
@@ -348,7 +293,7 @@ bool condicao()
 	 4 - erro b1
 	 5 - erro b2
 	 6 - ultima bomba ativa
-	 7 - 
+	 7 - trava
 	 8 - 
 	 9 - 
 	 10 - 
@@ -367,6 +312,7 @@ void conf_padrao()
 	EEPROM.write(3, TEMPMAX);
 	EEPROM.write(4, ERROZERO);
 	EEPROM.write(5, ERROZERO);
+	EEPROM.write(7, false);
 
 	for(int i=100; i<500; i++)
 		EEPROM.write(i, 0);
@@ -393,11 +339,11 @@ void somaErro(bool bombaPorta)
 
 float lerTemp1()
 {
-  byte i;
-  byte type_s;
-  byte data[12];
-  byte addr[8];
-  float celsius;
+	byte i;
+	byte type_s;
+	byte data[12];
+	byte addr[8];
+	float celsius;
 	bool flag = true;
 
 	do
@@ -437,7 +383,7 @@ float lerTemp1()
 
 	int16_t raw = (data[1] << 8) | data[0];
 
-  celsius = conversao(raw, data, type_s);
+	celsius = conversao(raw, data, type_s);
 
 	return celsius;
 }
@@ -465,7 +411,7 @@ float lerTemp2()
 
 		if(type_s == -1)
 			return -1;
-		
+
 		dsTemp2.reset();
 		dsTemp2.select(addr);
 		dsTemp2.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
@@ -489,7 +435,7 @@ float lerTemp2()
 
 	int16_t raw = (data[1] << 8) | data[0];
 
-  celsius = conversao(raw, data, type_s);
+	celsius = conversao(raw, data, type_s);
 
 	return celsius;
 }
@@ -514,19 +460,19 @@ byte chip(byte addr)
 {
 	byte type_s;
 
-		switch (addr) {
-			case 0x10:
-				type_s = 1;
-				break;
-			case 0x28:
-				type_s = 0;
-				break;
-			case 0x22:
-				type_s = 0;
-				break;
-			default:
-				return -1;
-		}
+	switch (addr) {
+		case 0x10:
+			type_s = 1;
+			break;
+		case 0x28:
+			type_s = 0;
+			break;
+		case 0x22:
+			type_s = 0;
+			break;
+		default:
+			return -1;
+	}
 	return type_s;
 }
 
