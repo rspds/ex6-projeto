@@ -5,7 +5,7 @@
 #define TROCA 10000//86400000
 #define TEMP1 A2
 #define TEMP2 A3
-#define CORRENTE A4
+#define CORRENTE_PORTA A4
 #define VAZAO A5
 #define NV_S A0
 #define NV_I A1
@@ -61,6 +61,7 @@ unsigned int regs[TOTAL_NO_OF_PACKETS]; // Cria um array chamado regs, todos os 
 
 void processo();
 void impressao();
+void comunicacao();
 void leitura();
 void controle();
 char chaveBomba(char modo);
@@ -71,6 +72,7 @@ void releRevesamento();
 bool condicao();
 bool aviso();
 void conf_padrao();
+void inicializacao();
 void limpa_erro();
 void somaErro(bool bombaPorta);
 float lerTemp1();
@@ -92,6 +94,11 @@ float tempB1, tempB2;
 float nivInf, nivSup;
 float corrente;
 unsigned long tempo = 0;
+
+byte tempMax = 75, correnteMax = 20;
+//byte nivSup_Max = 75, nivInf_Min = 20;
+byte tempoRevesamento = 1, limpaErros = 0;
+byte stB1 = true, stB2 = true;
 
 void setup() {
 /*
@@ -124,8 +131,8 @@ void setup() {
 	modbus_construct (&packets[ULTIMO_ERRO_TIPO],			1,PRESET_SINGLE_REGISTER,7,1,ULTIMO_ERRO_TIPO			);
 	modbus_construct (&packets[TEMPERATURA_MAX],			1,READ_HOLDING_REGISTERS,8,1,TEMPERATURA_MAX			);
 	modbus_construct (&packets[CORRENTE_MAX],					1,READ_HOLDING_REGISTERS,9,1,CORRENTE_MAX					);
-	//modbus_construct (&packets[NIVSUP_MAX],					1,READ_HOLDING_REGISTERS,1,1,NIVSUP_MAX		 				);
-	//modbus_construct (&packets[NIVINF_MIN],					1,READ_HOLDING_REGISTERS,1,1,NIVINF_MIN						);
+	//modbus_construct (&packets[NIVSUP_MAX],						1,READ_HOLDING_REGISTERS,1,1,NIVSUP_MAX		 				);
+	//modbus_construct (&packets[NIVINF_MIN],						1,READ_HOLDING_REGISTERS,1,1,NIVINF_MIN						);
 	modbus_construct (&packets[TEMPO_DE_REVESAMENTO],	1,READ_HOLDING_REGISTERS,10,1,TEMPO_DE_REVESAMENTO);
 	modbus_construct (&packets[LIMPA_ERROS],					1,READ_HOLDING_REGISTERS,11,1,LIMPA_ERROS					);
 	modbus_construct (&packets[ST_B1],								1,READ_HOLDING_REGISTERS,12,1,ST_B1								);
@@ -134,6 +141,8 @@ void setup() {
 	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
 
 	conf_padrao();
+
+	inicializacao();
 
   releSeguranca(!trava);
 
@@ -144,26 +153,7 @@ void setup() {
 
 void loop() {
 
-	modbus_update(); //Vai processar todos os pacotes de comunicação
-
-  regs[NIVSUP						] = nivSup ;
-  regs[NIVINF						] = nivInf ;
-  regs[TEMPERATURA_B1		] = tempB1 ;
-  regs[TEMPERATURA_B2		] = tempB2 ; 
-  regs[CORRENTE					] = corrente ; 
-  regs[BOMBA_LIGADA			] = bomba ; 
-  regs[ULTIMO_ERRO_BOMBA] =  ; 
-  regs[ULTIMO_ERRO_TIPO	] =  ; 
-
-	 = regs[TEMPERATURA_MAX			];
-	 = regs[CORRENTE_MAX				];
-	 = regs[NIVSUP_MAX		 			];
-	 = regs[NIVINF_MIN					];
-	 = regs[TEMPO_DE_REVESAMENTO];
-	 = regs[LIMPA_ERROS					];
-	 = regs[ST_B1								];
-	 = regs[ST_B2								];
-
+	comunicacao();
 	processo();
 	impressao();
 	delay(1000);
@@ -208,6 +198,32 @@ void impressao()
   Serial.println(trava);
 }
 
+void comunicacao()
+{
+	modbus_update(); //Vai processar todos os pacotes de comunicação
+
+  regs[NIVSUP						] = nivSup ;
+  regs[NIVINF						] = nivInf ;
+  regs[TEMPERATURA_B1		] = tempB1 ;
+  regs[TEMPERATURA_B2		] = tempB2 ; 
+  regs[CORRENTE					] = corrente ; 
+  regs[BOMBA_LIGADA			] = bomba ; 
+  regs[ULTIMO_ERRO_BOMBA] = EEPROM.read(8) ; 
+  regs[ULTIMO_ERRO_TIPO	] = EEPROM.read(9) ; 
+
+	tempMax 				= regs[TEMPERATURA_MAX			];
+	correnteMax 		= regs[CORRENTE_MAX				];
+//	nivSup_Max 	 	= regs[NIVSUP_MAX		 			];
+//	nivInf_Min 	 	= regs[NIVINF_MIN					];
+	tempoRevesamento= regs[TEMPO_DE_REVESAMENTO];
+	limpaErros 			= regs[LIMPA_ERROS					];
+	stB1 						= regs[ST_B1								];
+	stB2 						= regs[ST_B2								];
+
+	atualizar();
+	limpa_erro();
+}
+
 void processo()
 {
 
@@ -223,7 +239,7 @@ void leitura()
 	//tempB2 = lerTemp2();
 	tempB1 = analogRead(TEMP1);
 	tempB2 = analogRead(TEMP2);
-	corrente = analogRead(CORRENTE);
+	corrente = analogRead(CORRENTE_PORTA);
 
 	nivInf = map(nivInf, 0, 1023, 0, 100);
 	nivSup = map(nivSup, 0, 1023, 0, 100);
@@ -246,7 +262,7 @@ void controle()
 	else
 		ledErro(false);
 
-	if(intervalo > TROCA * TEMPODIAS)
+	if(intervalo > TROCA * tempoRevesamento)
 		trocaBomba();
 }
 
@@ -257,11 +273,11 @@ bool trocaBomba()
 
 	if(bomba == 0)
 	{
-		if(EEPROM.read(5) < ERROMAX)
+		if(EEPROM.read(5) < ERROMAX && stB2)
 			bomba = !bomba;
 		else
 		{
-			if(EEPROM.read(4) < ERROMAX)
+			if(EEPROM.read(4) < ERROMAX && stB1)
 				bomba = bomba;
 			else
 				trava = true;
@@ -269,11 +285,11 @@ bool trocaBomba()
 	}
 	else if(bomba == 1)
 	{
-		if(EEPROM.read(4) < ERROMAX)
+		if(EEPROM.read(4) < ERROMAX && stB1)
 			bomba = !bomba;
 		else
 		{
-			if(EEPROM.read(5) < ERROMAX)
+			if(EEPROM.read(5) < ERROMAX && stB2)
 				bomba = bomba;
 			else
 				trava = true;
@@ -323,12 +339,24 @@ bool condicao()
 {
 	bool cond;
 
-	if (bomba == 0 && tempB1 > 75)
+	if (bomba == 0 && tempB1 > tempMax)
+	{
 		cond = false;
-	else if (bomba == 1 && tempB2 > 75)
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'T');
+	}
+	else if (bomba == 1 && tempB2 > tempMax)
+	{
 		cond = false;
-	else if (corrente < 20)
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'T');
+	}
+	else if (corrente < correnteMax)
+	{
 		cond = false;
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'C');
+	}
 	else
 		cond = true;
 
@@ -339,9 +367,9 @@ bool aviso()
 {
 	bool cond;
 
-	if (nivSup > 75)
-		cond = false;
-	else if (nivInf < 20)
+	if (nivSup > 75)// nivSup_Max)
+		cond = false; 
+	else if (nivInf < 20)//	nivInf_Min)
 		cond = false;
 	else
 		cond = true;
@@ -359,9 +387,10 @@ bool aviso()
 	 5 - erro b2
 	 6 - ultima bomba ativa
 	 7 - trava
-	 8 - 
-	 9 - 
-	 10 - 
+	 8 - ultimo erro bomba
+	 9 - ultimo erro tipo
+	 10 - status da bomba 1
+	 11 - status da bomba 2
 	 .
 	 .
 	 .
@@ -378,15 +407,65 @@ void conf_padrao()
 	EEPROM.write(4, ERROZERO);
 	EEPROM.write(5, ERROZERO);
 	EEPROM.write(7, false);
+	EEPROM.write(8, 0);
+	EEPROM.write(9, '-');
+	EEPROM.write(10, true);
+	EEPROM.write(11, true);
+
+	inicializacao();
 
 	for(int i=100; i<500; i++)
 		EEPROM.write(i, 0);
 }
 
+void inicializacao()
+{
+	tempoRevesamento = EEPROM.read(1);
+	correnteMax = EEPROM.read(2);
+	tempMax = EEPROM.read(3);
+	bomba = EEPROM.read(6);
+  trava = EEPROM.read(7);
+	stB1 = EEPROM.read(10);
+	stB2 = EEPROM.read(11);
+}
+
+void atualizar()
+{
+	if (tempMax != EEPROM.read(3))
+		EEPROM.write(3, tempMax);
+	
+	if (correnteMax != EEPROM.read(2))
+		EEPROM.write(2, correnteMax);
+	
+	if (tempoRevesamento != EEPROM.read(1))
+		EEPROM.write(1, tempoRevesamento);
+	
+	if (stB1 != EEPROM.read(10))
+		EEPROM.write(10, stB1);
+	
+	if (stB2 != EEPROM.read(11))
+		EEPROM.write(11, stB2);	
+}
+
 void limpa_erro()
 {
-	EEPROM.write(4, ERROZERO);
-	EEPROM.write(5, ERROZERO);
+	switch(limpaErros)
+	{
+		case 0:
+			//nao faz nada
+			break;
+		case 1:
+			EEPROM.write(4, ERROZERO);
+			break;
+		case 2:
+			EEPROM.write(5, ERROZERO);
+			break;
+		case 3:
+			EEPROM.write(4, ERROZERO);
+			EEPROM.write(5, ERROZERO);
+			break;
+	}
+	return;
 }
 
 void somaErro(bool bombaPorta)
@@ -394,9 +473,7 @@ void somaErro(bool bombaPorta)
 	byte x;
 
 	x = EEPROM.read(bombaPorta + 4);
-
 	x++;
-
 	EEPROM.write(bombaPorta + 4, x);
 
 	return;
