@@ -80,14 +80,6 @@ float lerTemp2();
 float conversao(int16_t raw, byte data[], byte type_s);
 byte chip(byte addr);
 
-typedef struct st_historico{
-	byte dia;
-	byte mes;
-	byte ano;
-	byte bomba;
-	char tipo;
-}t_hist;
-
 bool trava = false;
 bool bomba = 0;
 float tempB1, tempB2;
@@ -100,27 +92,8 @@ byte tempMax = 75, correnteMax = 20;
 byte tempoRevesamento = 1, limpaErros = 0;
 byte stB1 = true, stB2 = true;
 
-void setup() {
-/*
-	//escrita
-	NIVSUP
-	NIVINF
-	TEMPERATURA_B1
-	TEMPERATURA_B2
-	CORRENTE
-	BOMBA_LIGADA
-	ULTIMO_ERRO_BOMBA
-	ULTIMO_ERRO_TIPO
-	TEMPERATURA_MAX
-	CORRENTE_MAX
-	NIVSUP_MAX
-	NIVINF_MIN
-	TEMPO_DE_REVESAMENTO
-	LIMPA_ERROS
-	ST_B1
-	ST_B2
-*/	
-
+void setup()
+{
 	modbus_construct (&packets[NIVSUP],								1,PRESET_SINGLE_REGISTER,0,1,NIVSUP								); 
 	modbus_construct (&packets[NIVINF],								1,PRESET_SINGLE_REGISTER,1,1,NIVINF								);
 	modbus_construct (&packets[TEMPERATURA_B1],				1,PRESET_SINGLE_REGISTER,2,1,TEMPERATURA_B1				);
@@ -151,8 +124,8 @@ void setup() {
 		pinMode(i + 10, OUTPUT);
 }
 
-void loop() {
-
+void loop()
+{
 	comunicacao();
 	processo();
 	impressao();
@@ -172,20 +145,16 @@ void impressao()
 	Serial.println(nivSup);
 	Serial.print("Corrente: ");
 	Serial.println(corrente);
-//	Serial.print("Vazao: ");
-//	Serial.println(vazao);
-//	Serial.print("Status da Bomba 1: ");
-//	Serial.println(bombaSt[0]);
-//	Serial.print("Status da Bomba 2: ");
-//	Serial.println(bombaSt[1]);
+	Serial.print("Status da Bomba 1: ");
+	Serial.println(stB1);
+	Serial.print("Status da Bomba 2: ");
+	Serial.println(stB2);
 	Serial.print("Bomba: ");
 	Serial.println(bomba);
 	Serial.print("Qtd de Erro Bomba 1: ");
 	Serial.println(EEPROM.read(4));
 	Serial.print("Qtd de Erro Bomba 2: ");
 	Serial.println(EEPROM.read(5));
-//	Serial.print("necessidade: ");
-//	Serial.println(necessidade);
 	Serial.print("Ultima Bomba Ativa: ");
 	Serial.println(EEPROM.read(6));
 	Serial.print("Tempo de Duração [Dias]: ");
@@ -196,6 +165,18 @@ void impressao()
 	Serial.println(EEPROM.read(3));
   Serial.print("Trava: ");
   Serial.println(trava);
+  Serial.print("Temperatura Maxima[RS485]: ");
+  Serial.println(tempMax);
+  Serial.print("Corrente Maxima[RS485]: ");
+  Serial.println(correnteMax);
+//  Serial.print("NivSup Maximo: ");
+//  Serial.println(nivSup_Max);
+//  Serial.print("nivInf_Max: ");
+//  Serial.println(nivInf_Min);
+  Serial.print("Tempo de Revesamento: ");
+  Serial.println(tempoRevesamento);
+  Serial.print("Comando limpaErros: ");
+  Serial.println(limpaErros);
 }
 
 void comunicacao()
@@ -394,9 +375,6 @@ bool aviso()
 	 .
 	 .
 	 .
-	 100 a 299 - Historico de erros B1
-	 300 a 499 - Historico de erros B2
-
  */
 
 void conf_padrao()
@@ -431,14 +409,14 @@ void inicializacao()
 
 void atualizar()
 {
-	if (tempMax != EEPROM.read(3))
-		EEPROM.write(3, tempMax);
+	if (tempoRevesamento != EEPROM.read(1))
+		EEPROM.write(1, tempoRevesamento);
 	
 	if (correnteMax != EEPROM.read(2))
 		EEPROM.write(2, correnteMax);
 	
-	if (tempoRevesamento != EEPROM.read(1))
-		EEPROM.write(1, tempoRevesamento);
+	if (tempMax != EEPROM.read(3))
+		EEPROM.write(3, tempMax);
 	
 	if (stB1 != EEPROM.read(10))
 		EEPROM.write(10, stB1);
