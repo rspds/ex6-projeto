@@ -30,10 +30,25 @@ long baud = 9600; // velocidade
 #include <EEPROM.h>
 #include <SimpleModbusMaster_DUE.h> // incluindo biblioteca do mestre
 
-enum { PACKET1,
-	PACKET2,
-	PACKET3,
-	PACKET4,
+enum { 
+	//escrita
+	NIVSUP,
+	NIVINF,
+	TEMPERATURA_B1,
+	TEMPERATURA_B2,
+	CORRENTE,
+	BOMBA_LIGADA,
+	ULTIMO_ERRO_BOMBA,
+	ULTIMO_ERRO_TIPO,
+	//leitura
+	TEMPERATURA_MAX,
+	CORRENTE_MAX,
+//	NIVSUP_MAX,
+//	NIVINF_MIN,
+	TEMPO_DE_REVESAMENTO,
+	LIMPA_ERROS,
+	ST_B1,
+	ST_B2,
 	TOTAL_NO_OF_PACKETS
 };
 
@@ -79,10 +94,42 @@ float corrente;
 unsigned long tempo = 0;
 
 void setup() {
-	modbus_construct (&packets[PACKET1],1,PRESET_SINGLE_REGISTER,0,1,0); 
-	modbus_construct (&packets[PACKET2],1,PRESET_SINGLE_REGISTER,1,1,1);
-	modbus_construct (&packets[PACKET3],1,PRESET_SINGLE_REGISTER,2,1,2);
-	modbus_construct (&packets[PACKET4],1,READ_HOLDING_REGISTERS,3,1,3);
+/*
+	//escrita
+	NIVSUP
+	NIVINF
+	TEMPERATURA_B1
+	TEMPERATURA_B2
+	CORRENTE
+	BOMBA_LIGADA
+	ULTIMO_ERRO_BOMBA
+	ULTIMO_ERRO_TIPO
+	TEMPERATURA_MAX
+	CORRENTE_MAX
+	NIVSUP_MAX
+	NIVINF_MIN
+	TEMPO_DE_REVESAMENTO
+	LIMPA_ERROS
+	ST_B1
+	ST_B2
+*/	
+
+	modbus_construct (&packets[NIVSUP],								1,PRESET_SINGLE_REGISTER,0,1,NIVSUP								); 
+	modbus_construct (&packets[NIVINF],								1,PRESET_SINGLE_REGISTER,1,1,NIVINF								);
+	modbus_construct (&packets[TEMPERATURA_B1],				1,PRESET_SINGLE_REGISTER,2,1,TEMPERATURA_B1				);
+	modbus_construct (&packets[TEMPERATURA_B2],				1,PRESET_SINGLE_REGISTER,3,1,TEMPERATURA_B2				);
+	modbus_construct (&packets[CORRENTE],							1,PRESET_SINGLE_REGISTER,4,1,CORRENTE							);
+	modbus_construct (&packets[BOMBA_LIGADA],					1,PRESET_SINGLE_REGISTER,5,1,BOMBA_LIGADA					);
+	modbus_construct (&packets[ULTIMO_ERRO_BOMBA],		1,PRESET_SINGLE_REGISTER,6,1,ULTIMO_ERRO_BOMBA		);
+	modbus_construct (&packets[ULTIMO_ERRO_TIPO],			1,PRESET_SINGLE_REGISTER,7,1,ULTIMO_ERRO_TIPO			);
+	modbus_construct (&packets[TEMPERATURA_MAX],			1,READ_HOLDING_REGISTERS,8,1,TEMPERATURA_MAX			);
+	modbus_construct (&packets[CORRENTE_MAX],					1,READ_HOLDING_REGISTERS,9,1,CORRENTE_MAX					);
+	//modbus_construct (&packets[NIVSUP_MAX],					1,READ_HOLDING_REGISTERS,1,1,NIVSUP_MAX		 				);
+	//modbus_construct (&packets[NIVINF_MIN],					1,READ_HOLDING_REGISTERS,1,1,NIVINF_MIN						);
+	modbus_construct (&packets[TEMPO_DE_REVESAMENTO],	1,READ_HOLDING_REGISTERS,10,1,TEMPO_DE_REVESAMENTO);
+	modbus_construct (&packets[LIMPA_ERROS],					1,READ_HOLDING_REGISTERS,11,1,LIMPA_ERROS					);
+	modbus_construct (&packets[ST_B1],								1,READ_HOLDING_REGISTERS,12,1,ST_B1								);
+	modbus_construct (&packets[ST_B2],								1,READ_HOLDING_REGISTERS,13,1,ST_B2								);
 
 	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
 
@@ -96,6 +143,26 @@ void setup() {
 }
 
 void loop() {
+
+	modbus_update(); //Vai processar todos os pacotes de comunicação
+
+  regs[NIVSUP						] = nivSup ;
+  regs[NIVINF						] = nivInf ;
+  regs[TEMPERATURA_B1		] = tempB1 ;
+  regs[TEMPERATURA_B2		] = tempB2 ; 
+  regs[CORRENTE					] = corrente ; 
+  regs[BOMBA_LIGADA			] = bomba ; 
+  regs[ULTIMO_ERRO_BOMBA] =  ; 
+  regs[ULTIMO_ERRO_TIPO	] =  ; 
+
+	 = regs[TEMPERATURA_MAX			];
+	 = regs[CORRENTE_MAX				];
+	 = regs[NIVSUP_MAX		 			];
+	 = regs[NIVINF_MIN					];
+	 = regs[TEMPO_DE_REVESAMENTO];
+	 = regs[LIMPA_ERROS					];
+	 = regs[ST_B1								];
+	 = regs[ST_B2								];
 
 	processo();
 	impressao();
