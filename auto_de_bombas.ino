@@ -74,7 +74,7 @@ void setup()
 	conf_padrao();
 
 	pinMode(enableTx, OUTPUT);
-
+	digitalWrite(enableTx, LOW);//receber
 	S485Serial.begin(4800);   // set the data rate 
 
   releSeguranca(!trava);
@@ -127,19 +127,44 @@ void impressao()
 
 void comunicacao()
 {
-  regs[NIVSUP						] = nivSup ;
-  regs[NIVINF						] = nivInf ;
-  regs[TEMPERATURA_B1		] = tempB1 ;
-  regs[TEMPERATURA_B2		] = tempB2 ; 
-  regs[CORRENTE					] = corrente ; 
-  regs[BOMBA_LIGADA			] = bomba ; 
-  regs[ULTIMO_ERRO_BOMBA] = EEPROM.read(8) ; 
-  regs[ULTIMO_ERRO_TIPO	] = EEPROM.read(9) ; 
+	digitalWrite(enableTx, HIGH);//enviar
+	delay(40);
 
-	
+	RS485Serial.write(201);
+	delay(40);
+  RS485Serial.write(nivSup);
+	delay(40);
+  RS485Serial.write(202);
+	delay(40);
+  RS485Serial.write(nivInf);
+	delay(40);
+  RS485Serial.write(203);
+	delay(40);
+  RS485Serial.write(tempB1);
+	delay(40);
+  RS485Serial.write(204);
+	delay(40);
+  RS485Serial.write(tempB2);
+	delay(40);
+  RS485Serial.write(205);
+	delay(40);
+  RS485Serial.write(corrente);
+	delay(40);
+  RS485Serial.write(206);
+	delay(40);
+  RS485Serial.write(bomba);
+	delay(40);
+  RS485Serial.write(207);
+	delay(40);
+  RS485Serial.write(EEPROM.read(8));
+	delay(40);
+  RS485Serial.write(208);
+	delay(40);
+  RS485Serial.write(EEPROM.read(9));
+	delay(40);
 
-
-	//limpa_erro();
+	digitalWrite(enableTx, HIGH);//receber
+	delay(40);
 }
 
 void processo()
