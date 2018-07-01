@@ -3,13 +3,17 @@
 #define led1 11
 #define ledE 12
 #define TROCA 10000//86400000
+#define tempoRevesamento 1
+#define tempMax 75
+#define correnteMax 20
+#define stB1 true
+#define stB2 true
 #define TEMP1 A2
 #define TEMP2 A3
 #define CORRENTE_PORTA A4
 #define VAZAO A5
 #define NV_S A0
 #define NV_I A1
-//#define TOLERANCIA 2
 #define TEMPMAX 75
 //#define TEMPMIN 0
 #define TEMPODIAS 1
@@ -28,8 +32,9 @@ long baud = 9600; // velocidade
 
 #include <OneWire.h>
 #include <EEPROM.h>
-#include <SimpleModbusMaster_DUE.h> // incluindo biblioteca do mestre
+#include <SoftwareSerial.h> // incluindo biblioteca do mestre
 
+/*
 enum { 
 	//escrita
 	NIVSUP,
@@ -40,24 +45,12 @@ enum {
 	BOMBA_LIGADA,
 	ULTIMO_ERRO_BOMBA,
 	ULTIMO_ERRO_TIPO,
-	//leitura
-	TEMPERATURA_MAX,
-	CORRENTE_MAX,
-//	NIVSUP_MAX,
-//	NIVINF_MIN,
-	TEMPO_DE_REVESAMENTO,
-	LIMPA_ERROS,
-	ST_B1,
-	ST_B2,
 	TOTAL_NO_OF_PACKETS
 };
+*/
 
 OneWire  dsTemp1(TEMP1);
 OneWire  dsTemp2(TEMP2);
-
-Packet packets[TOTAL_NO_OF_PACKETS]; //Cria um array com os pacotes que estão no enum
-
-unsigned int regs[TOTAL_NO_OF_PACKETS]; // Cria um array chamado regs, todos os elementos desse array é do tipo unsigned int.
 
 void processo();
 void impressao();
@@ -73,7 +66,7 @@ bool condicao();
 bool aviso();
 void conf_padrao();
 void inicializacao();
-void limpa_erro();
+void limpa_erro(int i);
 void somaErro(bool bombaPorta);
 float lerTemp1();
 float lerTemp2();
@@ -87,35 +80,9 @@ float nivInf, nivSup;
 float corrente;
 unsigned long tempo = 0;
 
-byte tempMax = 75, correnteMax = 20;
-//byte nivSup_Max = 75, nivInf_Min = 20;
-byte tempoRevesamento = 1, limpaErros = 0;
-byte stB1 = true, stB2 = true;
-
 void setup()
 {
-	modbus_construct (&packets[NIVSUP],								1,PRESET_SINGLE_REGISTER,0,1,NIVSUP								); 
-	modbus_construct (&packets[NIVINF],								1,PRESET_SINGLE_REGISTER,1,1,NIVINF								);
-	modbus_construct (&packets[TEMPERATURA_B1],				1,PRESET_SINGLE_REGISTER,2,1,TEMPERATURA_B1				);
-	modbus_construct (&packets[TEMPERATURA_B2],				1,PRESET_SINGLE_REGISTER,3,1,TEMPERATURA_B2				);
-	modbus_construct (&packets[CORRENTE],							1,PRESET_SINGLE_REGISTER,4,1,CORRENTE							);
-	modbus_construct (&packets[BOMBA_LIGADA],					1,PRESET_SINGLE_REGISTER,5,1,BOMBA_LIGADA					);
-	modbus_construct (&packets[ULTIMO_ERRO_BOMBA],		1,PRESET_SINGLE_REGISTER,6,1,ULTIMO_ERRO_BOMBA		);
-	modbus_construct (&packets[ULTIMO_ERRO_TIPO],			1,PRESET_SINGLE_REGISTER,7,1,ULTIMO_ERRO_TIPO			);
-	modbus_construct (&packets[TEMPERATURA_MAX],			1,READ_HOLDING_REGISTERS,8,1,TEMPERATURA_MAX			);
-	modbus_construct (&packets[CORRENTE_MAX],					1,READ_HOLDING_REGISTERS,9,1,CORRENTE_MAX					);
-	//modbus_construct (&packets[NIVSUP_MAX],						1,READ_HOLDING_REGISTERS,1,1,NIVSUP_MAX		 				);
-	//modbus_construct (&packets[NIVINF_MIN],						1,READ_HOLDING_REGISTERS,1,1,NIVINF_MIN						);
-	modbus_construct (&packets[TEMPO_DE_REVESAMENTO],	1,READ_HOLDING_REGISTERS,10,1,TEMPO_DE_REVESAMENTO);
-	modbus_construct (&packets[LIMPA_ERROS],					1,READ_HOLDING_REGISTERS,11,1,LIMPA_ERROS					);
-	modbus_construct (&packets[ST_B1],								1,READ_HOLDING_REGISTERS,12,1,ST_B1								);
-	modbus_construct (&packets[ST_B2],								1,READ_HOLDING_REGISTERS,13,1,ST_B2								);
-
-	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
-
 	conf_padrao();
-
-	inicializacao();
 
   releSeguranca(!trava);
 
@@ -145,10 +112,6 @@ void impressao()
 	Serial.println(nivSup);
 	Serial.print("Corrente: ");
 	Serial.println(corrente);
-	Serial.print("Status da Bomba 1: ");
-	Serial.println(stB1);
-	Serial.print("Status da Bomba 2: ");
-	Serial.println(stB2);
 	Serial.print("Bomba: ");
 	Serial.println(bomba);
 	Serial.print("Qtd de Erro Bomba 1: ");
@@ -157,32 +120,20 @@ void impressao()
 	Serial.println(EEPROM.read(5));
 	Serial.print("Ultima Bomba Ativa: ");
 	Serial.println(EEPROM.read(6));
+	/*
 	Serial.print("Tempo de Duração [Dias]: ");
 	Serial.println(EEPROM.read(1));
 	Serial.print("Corrente Minima: ");
 	Serial.println(EEPROM.read(2));
 	Serial.print("Temperatura Maxima: ");
 	Serial.println(EEPROM.read(3));
+	*/
   Serial.print("Trava: ");
   Serial.println(trava);
-  Serial.print("Temperatura Maxima[RS485]: ");
-  Serial.println(tempMax);
-  Serial.print("Corrente Maxima[RS485]: ");
-  Serial.println(correnteMax);
-//  Serial.print("NivSup Maximo: ");
-//  Serial.println(nivSup_Max);
-//  Serial.print("nivInf_Max: ");
-//  Serial.println(nivInf_Min);
-  Serial.print("Tempo de Revesamento: ");
-  Serial.println(tempoRevesamento);
-  Serial.print("Comando limpaErros: ");
-  Serial.println(limpaErros);
 }
 
 void comunicacao()
 {
-	modbus_update(); //Vai processar todos os pacotes de comunicação
-
   regs[NIVSUP						] = nivSup ;
   regs[NIVINF						] = nivInf ;
   regs[TEMPERATURA_B1		] = tempB1 ;
@@ -192,17 +143,7 @@ void comunicacao()
   regs[ULTIMO_ERRO_BOMBA] = EEPROM.read(8) ; 
   regs[ULTIMO_ERRO_TIPO	] = EEPROM.read(9) ; 
 
-	tempMax 				= regs[TEMPERATURA_MAX			];
-	correnteMax 		= regs[CORRENTE_MAX				];
-//	nivSup_Max 	 	= regs[NIVSUP_MAX		 			];
-//	nivInf_Min 	 	= regs[NIVINF_MIN					];
-	tempoRevesamento= regs[TEMPO_DE_REVESAMENTO];
-	limpaErros 			= regs[LIMPA_ERROS					];
-	stB1 						= regs[ST_B1								];
-	stB2 						= regs[ST_B2								];
-
-	atualizar();
-	limpa_erro();
+	//limpa_erro();
 }
 
 void processo()
@@ -387,8 +328,6 @@ void conf_padrao()
 	EEPROM.write(7, false);
 	EEPROM.write(8, 0);
 	EEPROM.write(9, '-');
-	EEPROM.write(10, true);
-	EEPROM.write(11, true);
 
 	inicializacao();
 
@@ -398,36 +337,13 @@ void conf_padrao()
 
 void inicializacao()
 {
-	tempoRevesamento = EEPROM.read(1);
-	correnteMax = EEPROM.read(2);
-	tempMax = EEPROM.read(3);
 	bomba = EEPROM.read(6);
   trava = EEPROM.read(7);
-	stB1 = EEPROM.read(10);
-	stB2 = EEPROM.read(11);
 }
 
-void atualizar()
+void limpa_erro(int i)
 {
-	if (tempoRevesamento != EEPROM.read(1))
-		EEPROM.write(1, tempoRevesamento);
-	
-	if (correnteMax != EEPROM.read(2))
-		EEPROM.write(2, correnteMax);
-	
-	if (tempMax != EEPROM.read(3))
-		EEPROM.write(3, tempMax);
-	
-	if (stB1 != EEPROM.read(10))
-		EEPROM.write(10, stB1);
-	
-	if (stB2 != EEPROM.read(11))
-		EEPROM.write(11, stB2);	
-}
-
-void limpa_erro()
-{
-	switch(limpaErros)
+	switch(i)
 	{
 		case 0:
 			//nao faz nada
