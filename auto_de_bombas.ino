@@ -1,56 +1,45 @@
 #define NUM_BOMBA 2
+//====================================================================
 #define led0 10
 #define led1 11
 #define ledE 12
+//====================================================================
 #define TROCA 10000//86400000
+//====================================================================
 #define tempoRevesamento 1
 #define tempMax 75
 #define correnteMax 20
 #define stB1 true
 #define stB2 true
+//====================================================================
 #define TEMP1 A2
 #define TEMP2 A3
 #define CORRENTE_PORTA A4
 #define VAZAO A5
 #define NV_S A0
 #define NV_I A1
+//====================================================================
 #define TEMPMAX 75
 //#define TEMPMIN 0
 #define TEMPODIAS 1
 #define ERROMAX 2
 #define ERROZERO 0
 #define CORRENTEMIN 0
-
 //====================================================================
-long baud = 9600; // velocidade
-#define timeout 1000 // Tempo máximo que o mestre espera a resposta do escravo
-#define polling 200 // taxa que o mestre requisita os escravos
-#define retry_count 10 //Caso haja um erro, quantas tentativas de comunicação ele vai fazer
-#define TxEnablePin 2 // Pino do arduino que sera o enable
-#define TOTAL_NO_OF_REGISTER 5 // número de registradores que vai ser utilizado
+#define enableTx 3 // Pino do arduino que sera o enable
+//====================================================================
+#define SSerialRX        8  //Serial Receive pin
+#define SSerialTX        9  //Serial Transmit pin
 //====================================================================
 
 #include <OneWire.h>
 #include <EEPROM.h>
 #include <SoftwareSerial.h> // incluindo biblioteca do mestre
 
-/*
-enum { 
-	//escrita
-	NIVSUP,
-	NIVINF,
-	TEMPERATURA_B1,
-	TEMPERATURA_B2,
-	CORRENTE,
-	BOMBA_LIGADA,
-	ULTIMO_ERRO_BOMBA,
-	ULTIMO_ERRO_TIPO,
-	TOTAL_NO_OF_PACKETS
-};
-*/
-
 OneWire  dsTemp1(TEMP1);
 OneWire  dsTemp2(TEMP2);
+
+SoftwareSerial RS485Serial(SSerialRX, SSerialTX); // RX, TX
 
 void processo();
 void impressao();
@@ -83,6 +72,10 @@ unsigned long tempo = 0;
 void setup()
 {
 	conf_padrao();
+
+	pinMode(enableTx, OUTPUT);
+
+	S485Serial.begin(4800);   // set the data rate 
 
   releSeguranca(!trava);
 
@@ -142,6 +135,9 @@ void comunicacao()
   regs[BOMBA_LIGADA			] = bomba ; 
   regs[ULTIMO_ERRO_BOMBA] = EEPROM.read(8) ; 
   regs[ULTIMO_ERRO_TIPO	] = EEPROM.read(9) ; 
+
+	
+
 
 	//limpa_erro();
 }
