@@ -131,40 +131,62 @@ void comunicacao()
 	delay(40);
 
 	RS485Serial.write(201);
-	delay(40);
   RS485Serial.write(nivSup);
-	delay(40);
+	delay(200);
   RS485Serial.write(202);
-	delay(40);
   RS485Serial.write(nivInf);
-	delay(40);
+	delay(200);
   RS485Serial.write(203);
-	delay(40);
   RS485Serial.write(tempB1);
-	delay(40);
+	delay(200);
   RS485Serial.write(204);
-	delay(40);
   RS485Serial.write(tempB2);
-	delay(40);
+	delay(200);
   RS485Serial.write(205);
-	delay(40);
   RS485Serial.write(corrente);
-	delay(40);
+	delay(200);
   RS485Serial.write(206);
-	delay(40);
   RS485Serial.write(bomba);
-	delay(40);
+	delay(200);
   RS485Serial.write(207);
-	delay(40);
   RS485Serial.write(EEPROM.read(8));
-	delay(40);
+	delay(200);
   RS485Serial.write(208);
-	delay(40);
   RS485Serial.write(EEPROM.read(9));
-	delay(40);
+	delay(200);
 
 	digitalWrite(enableTx, HIGH);//receber
 	delay(40);
+}
+
+void receber()
+{
+	byte recebido;
+	byte valor;
+	if(RS485Serial.available())
+	{
+		recebido = RS485Serial.read();
+		switch(recebido)
+		{
+			case 201://nivel superior
+				valor = RS485Serial.read();
+			case 202://nivel inferior
+				valor = RS485Serial.read();
+			case 203://temperatura da bomba 1
+				valor = RS485Serial.read();
+			case 204://temperatura da bomba 2
+				valor = RS485Serial.read();
+			case 205://corrente
+				valor = RS485Serial.read();
+			case 206://qual a bomba ativa
+				valor = RS485Serial.read();
+			case 207://erro bomba
+				valor = RS485Serial.read();
+      :x
+				valor = RS485Serial.read();
+
+		}
+	}
 }
 
 void processo()
