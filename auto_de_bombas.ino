@@ -17,51 +17,25 @@
 #define ERROZERO 0
 #define CORRENTEMIN 0
 
-//====================================================================
-long baud = 9600; // velocidade
-#define timeout 1000 // Tempo máximo que o mestre espera a resposta do escravo
-#define polling 200 // taxa que o mestre requisita os escravos
-#define retry_count 10 //Caso haja um erro, quantas tentativas de comunicação ele vai fazer
-#define TxEnablePin 2 // Pino do arduino que sera o enable
-#define TOTAL_NO_OF_REGISTER 5 // número de registradores que vai ser utilizado
-//====================================================================
+#define SSerialRX        10  //Serial Receive pin
+#define SSerialTX        11  //Serial Transmit pin
+#define SSerialTxControl 3   //RS485 Direction control
+#define RS485Transmit    HIGH
+#define RS485Receive     LOW
+#define intervaloTransmissao           3000
 
 #include <OneWire.h>
 #include <EEPROM.h>
-#include <SimpleModbusMaster_DUE.h> // incluindo biblioteca do mestre
-
-enum { 
-	//escrita
-	NIVSUP,
-	NIVINF,
-	TEMPERATURA_B1,
-	TEMPERATURA_B2,
-	CORRENTE,
-	BOMBA_LIGADA,
-	ULTIMO_ERRO_BOMBA,
-	ULTIMO_ERRO_TIPO,
-	//leitura
-	TEMPERATURA_MAX,
-	CORRENTE_MAX,
-//	NIVSUP_MAX,
-//	NIVINF_MIN,
-	TEMPO_DE_REVESAMENTO,
-	LIMPA_ERROS,
-	ST_B1,
-	ST_B2,
-	TOTAL_NO_OF_PACKETS
-};
+#include <SoftwareSerial.h> // incluindo biblioteca do mestre
 
 OneWire  dsTemp1(TEMP1);
 OneWire  dsTemp2(TEMP2);
-
-Packet packets[TOTAL_NO_OF_PACKETS]; //Cria um array com os pacotes que estão no enum
-
-unsigned int regs[TOTAL_NO_OF_PACKETS]; // Cria um array chamado regs, todos os elementos desse array é do tipo unsigned int.
+SoftwareSerial RS485(SSerialRX, SSerialTX); // RX, TX
 
 void processo();
 void impressao();
 void comunicacao();
+void Transmite() ;
 void leitura();
 void controle();
 char chaveBomba(char modo);
@@ -80,11 +54,14 @@ float lerTemp2();
 float conversao(int16_t raw, byte data[], byte type_s);
 byte chip(byte addr);
 
+static unsigned long int ultimaTransmissao = 0;
+int contador = 0;
+
 bool trava = false;
 bool bomba = 0;
-float tempB1, tempB2;
-float nivInf, nivSup;
-float corrente;
+byte tempB1, tempB2;
+byte nivInf, nivSup;
+byte corrente;
 unsigned long tempo = 0;
 
 byte tempMax = 75, correnteMax = 20;
@@ -94,30 +71,18 @@ byte stB1 = true, stB2 = true;
 
 void setup()
 {
-	modbus_construct (&packets[NIVSUP],								1,PRESET_SINGLE_REGISTER,0,1,NIVSUP								); 
-	modbus_construct (&packets[NIVINF],								1,PRESET_SINGLE_REGISTER,1,1,NIVINF								);
-	modbus_construct (&packets[TEMPERATURA_B1],				1,PRESET_SINGLE_REGISTER,2,1,TEMPERATURA_B1				);
-	modbus_construct (&packets[TEMPERATURA_B2],				1,PRESET_SINGLE_REGISTER,3,1,TEMPERATURA_B2				);
-	modbus_construct (&packets[CORRENTE],							1,PRESET_SINGLE_REGISTER,4,1,CORRENTE							);
-	modbus_construct (&packets[BOMBA_LIGADA],					1,PRESET_SINGLE_REGISTER,5,1,BOMBA_LIGADA					);
-	modbus_construct (&packets[ULTIMO_ERRO_BOMBA],		1,PRESET_SINGLE_REGISTER,6,1,ULTIMO_ERRO_BOMBA		);
-	modbus_construct (&packets[ULTIMO_ERRO_TIPO],			1,PRESET_SINGLE_REGISTER,7,1,ULTIMO_ERRO_TIPO			);
-	modbus_construct (&packets[TEMPERATURA_MAX],			1,READ_HOLDING_REGISTERS,8,1,TEMPERATURA_MAX			);
-	modbus_construct (&packets[CORRENTE_MAX],					1,READ_HOLDING_REGISTERS,9,1,CORRENTE_MAX					);
-	//modbus_construct (&packets[NIVSUP_MAX],						1,READ_HOLDING_REGISTERS,1,1,NIVSUP_MAX		 				);
-	//modbus_construct (&packets[NIVINF_MIN],						1,READ_HOLDING_REGISTERS,1,1,NIVINF_MIN						);
-	modbus_construct (&packets[TEMPO_DE_REVESAMENTO],	1,READ_HOLDING_REGISTERS,10,1,TEMPO_DE_REVESAMENTO);
-	modbus_construct (&packets[LIMPA_ERROS],					1,READ_HOLDING_REGISTERS,11,1,LIMPA_ERROS					);
-	modbus_construct (&packets[ST_B1],								1,READ_HOLDING_REGISTERS,12,1,ST_B1								);
-	modbus_construct (&packets[ST_B2],								1,READ_HOLDING_REGISTERS,13,1,ST_B2								);
+	pinMode(SSerialTxControl, OUTPUT);
+	digitalWrite(SSerialTxControl, RS485Receive);
 
-	modbus_configure(&Serial, baud, timeout, polling, retry_count, TxEnablePin, packets, TOTAL_NO_OF_PACKETS, regs); // Iniciando as configurações de comunicação
+	Serial.begin(9600);
+	
+	RS485.begin(9600);  
 
 	conf_padrao();
 
 	inicializacao();
 
-  releSeguranca(!trava);
+	releSeguranca(!trava);
 
 	Serial.begin(9600);
 	for (int i = 0; i < 3; i++)
@@ -163,46 +128,147 @@ void impressao()
 	Serial.println(EEPROM.read(2));
 	Serial.print("Temperatura Maxima: ");
 	Serial.println(EEPROM.read(3));
-  Serial.print("Trava: ");
-  Serial.println(trava);
-  Serial.print("Temperatura Maxima[RS485]: ");
-  Serial.println(tempMax);
-  Serial.print("Corrente Maxima[RS485]: ");
-  Serial.println(correnteMax);
-//  Serial.print("NivSup Maximo: ");
-//  Serial.println(nivSup_Max);
-//  Serial.print("nivInf_Max: ");
-//  Serial.println(nivInf_Min);
-  Serial.print("Tempo de Revesamento: ");
-  Serial.println(tempoRevesamento);
-  Serial.print("Comando limpaErros: ");
-  Serial.println(limpaErros);
+	Serial.print("Trava: ");
+	Serial.println(trava);
+	Serial.print("Temperatura Maxima[RS485]: ");
+	Serial.println(tempMax);
+	Serial.print("Corrente Maxima[RS485]: ");
+	Serial.println(correnteMax);
+	//  Serial.print("NivSup Maximo: ");
+	//  Serial.println(nivSup_Max);
+	//  Serial.print("nivInf_Max: ");
+	//  Serial.println(nivInf_Min);
+	Serial.print("Tempo de Revesamento: ");
+	Serial.println(tempoRevesamento);
+	Serial.print("Comando limpaErros: ");
+	Serial.println(limpaErros);
 }
 
 void comunicacao()
 {
-	modbus_update(); //Vai processar todos os pacotes de comunicação
 
-  regs[NIVSUP						] = nivSup ;
-  regs[NIVINF						] = nivInf ;
-  regs[TEMPERATURA_B1		] = tempB1 ;
-  regs[TEMPERATURA_B2		] = tempB2 ; 
-  regs[CORRENTE					] = corrente ; 
-  regs[BOMBA_LIGADA			] = bomba ; 
-  regs[ULTIMO_ERRO_BOMBA] = EEPROM.read(8) ; 
-  regs[ULTIMO_ERRO_TIPO	] = EEPROM.read(9) ; 
+	if (millis() - ultimaTransmissao > intervaloTransmissao) Transmite();
 
-	tempMax 				= regs[TEMPERATURA_MAX			];
-	correnteMax 		= regs[CORRENTE_MAX				];
-//	nivSup_Max 	 	= regs[NIVSUP_MAX		 			];
-//	nivInf_Min 	 	= regs[NIVINF_MIN					];
-	tempoRevesamento= regs[TEMPO_DE_REVESAMENTO];
-	limpaErros 			= regs[LIMPA_ERROS					];
-	stB1 						= regs[ST_B1								];
-	stB2 						= regs[ST_B2								];
+	//checa se chegou um par de bytes
+	if (RS485.available() > 1)
+	{
+		//informa quandos bytes existem no buffer
+		//Serial.print("Buffer:  "); Serial.println(RS485.available());
+
+		//Elimina o autobuffer
+		byte erro = RS485.read();
+		Serial.print("Autobuffer:  "); Serial.println(erro);
+
+		byte h = RS485.read();
+		byte l = RS485.read();
+		switch (h)
+		{
+			case 200:
+				tempMax = l;
+				Serial.print("              PARTE HIGH(tempMax): "); Serial.println(h);
+				Serial.print("              PARTE LOW(tempMax): "); Serial.println(l);
+				break;
+			case 201:
+				correnteMax = l;
+				Serial.print("              PARTE HIGH(correnteMax): "); Serial.println(h);
+				Serial.print("              PARTE LOW(correnteMax): "); Serial.println(l);
+				break;
+			case 202:
+				tempoRevesamento = l;
+				Serial.print("              PARTE HIGH(tempoRevesamento): "); Serial.println(h);
+				Serial.print("              PARTE LOW(tempoRevesamento): "); Serial.println(l);
+				break;
+			case 203:
+				limpaErros = l;
+				Serial.print("              PARTE HIGH(limpaErros): "); Serial.println(h);
+				Serial.print("              PARTE LOW(limpaErros): "); Serial.println(l);
+				break;
+			case 204:
+				stB1 = l;
+				Serial.print("              PARTE HIGH(stB1): "); Serial.println(h);
+				Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+				break;
+			case 205:
+				stB2 = l;
+				Serial.print("              PARTE HIGH(stB2): "); Serial.println(h);
+				Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+				break;
+		}
+
+		//Aguarda a mensagem falsa
+		delay(3);
+
+		//elimina a mensagem falsa
+		erro = RS485.read();
+		Serial.print("              mensagem falsa: "); Serial.println(erro); Serial.println("");
+	}
 
 	atualizar();
 	limpa_erro();
+}
+
+void Transmite() 
+{
+	//configura este dispositivo como emissor
+	digitalWrite(SSerialTxControl, RS485Transmit);
+
+	//delay para o CI se estabilizar
+	delay(10);
+	switch (contador)
+	{
+		case 0:
+			RS485.write(200);
+			//delay para aguardar o fim da transmissão
+			//delay(2);
+			RS485.write(corrente);
+			break;
+		case 1:
+			RS485.write(201);
+			RS485.write(nivSup);
+			break;
+		case 2:
+			RS485.write(202);
+			RS485.write(nivInf);
+			break;
+		case 3:
+			RS485.write(203);
+			RS485.write(tempB1);
+			break;
+		case 4:
+			RS485.write(204);
+			RS485.write(tempB2);
+			break;
+		case 5:
+			RS485.write(205);
+			RS485.write(bomba);
+			break;
+		case 6:
+			RS485.write(206);
+			RS485.write(EEPROM.read(8));
+			break;
+		case 7:
+			RS485.write(207);
+			RS485.write(EEPROM.read(9));
+			break;
+		case 8:
+			RS485.write(208);
+			RS485.write(trava);
+			break;
+	}
+	contador++;
+	if(contador == 9)
+		contador = 0;
+	//delay para o fim da transmissão
+	delay(1);
+
+	//configura este dispositivo como receptor
+	//obs.: Este comando envia uma mensagem falsa
+	digitalWrite(SSerialTxControl, RS485Receive);
+
+
+	//atualiza o cronômetro
+	ultimaTransmissao = millis();
+
 }
 
 void processo()
@@ -214,24 +280,24 @@ void processo()
 
 void leitura()
 {
-	nivInf = analogRead(NV_I);
-	nivSup = analogRead(NV_S);
-	//tempB1 = lerTemp1();
-	//tempB2 = lerTemp2();
-	tempB1 = analogRead(TEMP1);
-	tempB2 = analogRead(TEMP2);
-	corrente = analogRead(CORRENTE_PORTA);
+	nivInf = analogRead(NV_I)/4;
+	nivSup = analogRead(NV_S)/4;
+	//tempB1 = lerTemp1()/4;
+	//tempB2 = lerTemp2()/4;
+	tempB1 = analogRead(TEMP1)/4;
+	tempB2 = analogRead(TEMP2)/4;
+	corrente = analogRead(CORRENTE_PORTA)/4;
 
-	nivInf = map(nivInf, 0, 1023, 0, 100);
-	nivSup = map(nivSup, 0, 1023, 0, 100);
-	tempB1 = map(tempB1, 0, 1023, 20, 100);
-	tempB2 = map(tempB2, 0, 1023, 20, 100);
-	corrente = map(corrente, 0, 1023, 0, 30);
+	nivInf = map(nivInf, 0, 255, 0, 100);
+	nivSup = map(nivSup, 0, 255, 0, 100);
+	tempB1 = map(tempB1, 0, 255, 20, 100);
+	tempB2 = map(tempB2, 0, 255, 20, 100);
+	corrente = map(corrente, 0, 255, 0, 30);
 }
 
 void controle()
 {
-  int intervalo = millis() - tempo;
+	int intervalo = millis() - tempo;
 
 	if(condicao() == false && trava == false)
 	{
@@ -278,7 +344,7 @@ bool trocaBomba()
 	}
 
 	releSeguranca(!trava);
-  releRevesamento();
+	releRevesamento();
 
 	EEPROM.write(6, bomba);
 	tempo = millis();
@@ -402,7 +468,7 @@ void inicializacao()
 	correnteMax = EEPROM.read(2);
 	tempMax = EEPROM.read(3);
 	bomba = EEPROM.read(6);
-  trava = EEPROM.read(7);
+	trava = EEPROM.read(7);
 	stB1 = EEPROM.read(10);
 	stB2 = EEPROM.read(11);
 }
@@ -411,16 +477,16 @@ void atualizar()
 {
 	if (tempoRevesamento != EEPROM.read(1))
 		EEPROM.write(1, tempoRevesamento);
-	
+
 	if (correnteMax != EEPROM.read(2))
 		EEPROM.write(2, correnteMax);
-	
+
 	if (tempMax != EEPROM.read(3))
 		EEPROM.write(3, tempMax);
-	
+
 	if (stB1 != EEPROM.read(10))
 		EEPROM.write(10, stB1);
-	
+
 	if (stB2 != EEPROM.read(11))
 		EEPROM.write(11, stB2);	
 }
@@ -443,6 +509,8 @@ void limpa_erro()
 			EEPROM.write(5, ERROZERO);
 			break;
 	}
+	trava = false;
+
 	return;
 }
 
