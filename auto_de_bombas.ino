@@ -2,7 +2,6 @@
 #define led0 10
 #define led1 11
 #define ledE 12
-#define TROCA 5000//86400000
 #define TEMP1 A2
 #define TEMP2 A3
 #define CORRENTE_PORTA A4
@@ -13,10 +12,11 @@
 #define TEMPMAX 75
 //#define TEMPMIN 0
 #define TEMPODIAS 1
+#define TROCA 5000//86400000
 #define ERROMAX 2
 #define ERROZERO 0
-#define CORRENTEMIN 20
-
+#define CORRENTEMAX 20
+#define TEMPERATURA_DIGITAL false
 #define SSerialRX        6  //Serial Receive pin
 #define SSerialTX        7  //Serial Transmit pin
 #define SSerialTxControl 3   //RS485 Direction control
@@ -306,16 +306,24 @@ void leitura()
 {
 	nivInf = analogRead(NV_I) / 4;
 	nivSup = analogRead(NV_S) / 4;
-	//tempB1 = lerTemp1()/4;
-	//tempB2 = lerTemp2()/4;
-	tempB1 = analogRead(TEMP1) / 4;
-	tempB2 = analogRead(TEMP2) / 4;
 	corrente = analogRead(CORRENTE_PORTA) / 4;
+	
+	if(TEMPERATURA_DIGITAL)
+	{
+		tempB1 = lerTemp1();
+		tempB2 = lerTemp2();
+	}
+	else
+	{
+		tempB1 = analogRead(TEMP1) / 4;
+		tempB2 = analogRead(TEMP2) / 4;
+	
+		tempB1 = map(tempB1, 0, 255, 20, 100);
+		tempB2 = map(tempB2, 0, 255, 20, 100);
+	}
 
 	nivInf = map(nivInf, 0, 255, 0, 100);
 	nivSup = map(nivSup, 0, 255, 0, 100);
-	tempB1 = map(tempB1, 0, 255, 20, 100);
-	tempB2 = map(tempB2, 0, 255, 20, 100);
 	corrente = map(corrente, 0, 255, 0, 30);
 }
 
@@ -470,7 +478,7 @@ bool aviso()
 void conf_padrao()
 {
 	EEPROM.write(1, TEMPODIAS);
-	EEPROM.write(2, CORRENTEMIN);
+	EEPROM.write(2, CORRENTEMAX);
 	EEPROM.write(3, TEMPMAX);
 	EEPROM.write(4, ERROZERO);
 	EEPROM.write(5, ERROZERO);
