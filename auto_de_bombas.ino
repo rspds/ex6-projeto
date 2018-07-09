@@ -25,12 +25,22 @@
 #define ERROMAX 2
 #define ERROZERO 0
 #define CORRENTEMIN 0
+<<<<<<< HEAD
 //====================================================================
 #define enableTx 3 // Pino do arduino que sera o enable
 //====================================================================
 #define SSerialRX        8  //Serial Receive pin
 #define SSerialTX        9  //Serial Transmit pin
 //====================================================================
+=======
+
+#define SSerialRX        10  //Serial Receive pin
+#define SSerialTX        11  //Serial Transmit pin
+#define SSerialTxControl 3   //RS485 Direction control
+#define RS485Transmit    HIGH
+#define RS485Receive     LOW
+#define intervaloTransmissao           3000
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
 
 #include <OneWire.h>
 #include <EEPROM.h>
@@ -38,12 +48,17 @@
 
 OneWire  dsTemp1(TEMP1);
 OneWire  dsTemp2(TEMP2);
+<<<<<<< HEAD
 
 SoftwareSerial RS485Serial(SSerialRX, SSerialTX); // RX, TX
+=======
+SoftwareSerial RS485(SSerialRX, SSerialTX); // RX, TX
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
 
 void processo();
 void impressao();
 void comunicacao();
+void Transmite() ;
 void leitura();
 void controle();
 char chaveBomba(char modo);
@@ -62,22 +77,35 @@ float lerTemp2();
 float conversao(int16_t raw, byte data[], byte type_s);
 byte chip(byte addr);
 
+static unsigned long int ultimaTransmissao = 0;
+int contador = 0;
+
 bool trava = false;
 bool bomba = 0;
-float tempB1, tempB2;
-float nivInf, nivSup;
-float corrente;
+byte tempB1, tempB2;
+byte nivInf, nivSup;
+byte corrente;
 unsigned long tempo = 0;
 
 void setup()
 {
+<<<<<<< HEAD
+=======
+	pinMode(SSerialTxControl, OUTPUT);
+	digitalWrite(SSerialTxControl, RS485Receive);
+
+	Serial.begin(9600);
+	
+	RS485.begin(9600);  
+
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
 	conf_padrao();
 
 	pinMode(enableTx, OUTPUT);
 	digitalWrite(enableTx, LOW);//receber
 	S485Serial.begin(4800);   // set the data rate 
 
-  releSeguranca(!trava);
+	releSeguranca(!trava);
 
 	Serial.begin(9600);
 	for (int i = 0; i < 3; i++)
@@ -120,13 +148,31 @@ void impressao()
 	Serial.println(EEPROM.read(2));
 	Serial.print("Temperatura Maxima: ");
 	Serial.println(EEPROM.read(3));
+<<<<<<< HEAD
 	*/
   Serial.print("Trava: ");
   Serial.println(trava);
+=======
+	Serial.print("Trava: ");
+	Serial.println(trava);
+	Serial.print("Temperatura Maxima[RS485]: ");
+	Serial.println(tempMax);
+	Serial.print("Corrente Maxima[RS485]: ");
+	Serial.println(correnteMax);
+	//  Serial.print("NivSup Maximo: ");
+	//  Serial.println(nivSup_Max);
+	//  Serial.print("nivInf_Max: ");
+	//  Serial.println(nivInf_Min);
+	Serial.print("Tempo de Revesamento: ");
+	Serial.println(tempoRevesamento);
+	Serial.print("Comando limpaErros: ");
+	Serial.println(limpaErros);
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
 }
 
 void comunicacao()
 {
+<<<<<<< HEAD
 	digitalWrite(enableTx, HIGH);//enviar
 	delay(40);
 
@@ -187,6 +233,131 @@ void receber()
 
 		}
 	}
+=======
+
+	if (millis() - ultimaTransmissao > intervaloTransmissao) Transmite();
+
+	//checa se chegou um par de bytes
+	if (RS485.available() > 1)
+	{
+		//informa quandos bytes existem no buffer
+		//Serial.print("Buffer:  "); Serial.println(RS485.available());
+
+		//Elimina o autobuffer
+		byte erro = RS485.read();
+		Serial.print("Autobuffer:  "); Serial.println(erro);
+
+		byte h = RS485.read();
+		byte l = RS485.read();
+		switch (h)
+		{
+			case 200:
+				tempMax = l;
+				Serial.print("              PARTE HIGH(tempMax): "); Serial.println(h);
+				Serial.print("              PARTE LOW(tempMax): "); Serial.println(l);
+				break;
+			case 201:
+				correnteMax = l;
+				Serial.print("              PARTE HIGH(correnteMax): "); Serial.println(h);
+				Serial.print("              PARTE LOW(correnteMax): "); Serial.println(l);
+				break;
+			case 202:
+				tempoRevesamento = l;
+				Serial.print("              PARTE HIGH(tempoRevesamento): "); Serial.println(h);
+				Serial.print("              PARTE LOW(tempoRevesamento): "); Serial.println(l);
+				break;
+			case 203:
+				limpaErros = l;
+				Serial.print("              PARTE HIGH(limpaErros): "); Serial.println(h);
+				Serial.print("              PARTE LOW(limpaErros): "); Serial.println(l);
+				break;
+			case 204:
+				stB1 = l;
+				Serial.print("              PARTE HIGH(stB1): "); Serial.println(h);
+				Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+				break;
+			case 205:
+				stB2 = l;
+				Serial.print("              PARTE HIGH(stB2): "); Serial.println(h);
+				Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+				break;
+		}
+
+		//Aguarda a mensagem falsa
+		delay(3);
+
+		//elimina a mensagem falsa
+		erro = RS485.read();
+		Serial.print("              mensagem falsa: "); Serial.println(erro); Serial.println("");
+	}
+
+	atualizar();
+	limpa_erro();
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
+}
+
+void Transmite() 
+{
+	//configura este dispositivo como emissor
+	digitalWrite(SSerialTxControl, RS485Transmit);
+
+	//delay para o CI se estabilizar
+	delay(10);
+	switch (contador)
+	{
+		case 0:
+			RS485.write(200);
+			//delay para aguardar o fim da transmissão
+			//delay(2);
+			RS485.write(corrente);
+			break;
+		case 1:
+			RS485.write(201);
+			RS485.write(nivSup);
+			break;
+		case 2:
+			RS485.write(202);
+			RS485.write(nivInf);
+			break;
+		case 3:
+			RS485.write(203);
+			RS485.write(tempB1);
+			break;
+		case 4:
+			RS485.write(204);
+			RS485.write(tempB2);
+			break;
+		case 5:
+			RS485.write(205);
+			RS485.write(bomba);
+			break;
+		case 6:
+			RS485.write(206);
+			RS485.write(EEPROM.read(8));
+			break;
+		case 7:
+			RS485.write(207);
+			RS485.write(EEPROM.read(9));
+			break;
+		case 8:
+			RS485.write(208);
+			RS485.write(trava);
+			break;
+	}
+	contador++;
+	if(contador == 9)
+		contador = 0;
+	//delay para o fim da transmissão
+	delay(1);
+
+	//configura este dispositivo como receptor
+	//obs.: Este comando envia uma mensagem falsa
+	digitalWrite(SSerialTxControl, RS485Receive);
+
+
+	//atualiza o cronômetro
+	ultimaTransmissao = millis();
+
 }
 
 void processo()
@@ -198,24 +369,24 @@ void processo()
 
 void leitura()
 {
-	nivInf = analogRead(NV_I);
-	nivSup = analogRead(NV_S);
-	//tempB1 = lerTemp1();
-	//tempB2 = lerTemp2();
-	tempB1 = analogRead(TEMP1);
-	tempB2 = analogRead(TEMP2);
-	corrente = analogRead(CORRENTE_PORTA);
+	nivInf = analogRead(NV_I)/4;
+	nivSup = analogRead(NV_S)/4;
+	//tempB1 = lerTemp1()/4;
+	//tempB2 = lerTemp2()/4;
+	tempB1 = analogRead(TEMP1)/4;
+	tempB2 = analogRead(TEMP2)/4;
+	corrente = analogRead(CORRENTE_PORTA)/4;
 
-	nivInf = map(nivInf, 0, 1023, 0, 100);
-	nivSup = map(nivSup, 0, 1023, 0, 100);
-	tempB1 = map(tempB1, 0, 1023, 20, 100);
-	tempB2 = map(tempB2, 0, 1023, 20, 100);
-	corrente = map(corrente, 0, 1023, 0, 30);
+	nivInf = map(nivInf, 0, 255, 0, 100);
+	nivSup = map(nivSup, 0, 255, 0, 100);
+	tempB1 = map(tempB1, 0, 255, 20, 100);
+	tempB2 = map(tempB2, 0, 255, 20, 100);
+	corrente = map(corrente, 0, 255, 0, 30);
 }
 
 void controle()
 {
-  int intervalo = millis() - tempo;
+	int intervalo = millis() - tempo;
 
 	if(condicao() == false && trava == false)
 	{
@@ -262,7 +433,7 @@ bool trocaBomba()
 	}
 
 	releSeguranca(!trava);
-  releRevesamento();
+	releRevesamento();
 
 	EEPROM.write(6, bomba);
 	tempo = millis();
@@ -381,7 +552,31 @@ void conf_padrao()
 void inicializacao()
 {
 	bomba = EEPROM.read(6);
+<<<<<<< HEAD
   trava = EEPROM.read(7);
+=======
+	trava = EEPROM.read(7);
+	stB1 = EEPROM.read(10);
+	stB2 = EEPROM.read(11);
+}
+
+void atualizar()
+{
+	if (tempoRevesamento != EEPROM.read(1))
+		EEPROM.write(1, tempoRevesamento);
+
+	if (correnteMax != EEPROM.read(2))
+		EEPROM.write(2, correnteMax);
+
+	if (tempMax != EEPROM.read(3))
+		EEPROM.write(3, tempMax);
+
+	if (stB1 != EEPROM.read(10))
+		EEPROM.write(10, stB1);
+
+	if (stB2 != EEPROM.read(11))
+		EEPROM.write(11, stB2);	
+>>>>>>> 7fa284920c5a278555a93889d147966f54c801ac
 }
 
 void limpa_erro(int i)
@@ -402,6 +597,8 @@ void limpa_erro(int i)
 			EEPROM.write(5, ERROZERO);
 			break;
 	}
+	trava = false;
+
 	return;
 }
 
