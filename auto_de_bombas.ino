@@ -49,6 +49,7 @@ bool aviso();
 void conf_padrao();
 void zerarErroTela();
 void inicializacao();
+void atualizar();
 void limpa_erro();
 void somaErro(bool bombaPorta);
 float lerTemp1();
