@@ -46,6 +46,7 @@ void releRevesamento();
 bool condicao();
 bool aviso();
 void conf_padrao();
+void zerarErroTela();
 void inicializacao();
 void limpa_erro();
 void somaErro(bool bombaPorta);
@@ -68,6 +69,7 @@ byte tempMax = 75, correnteMax = 20;
 //byte nivSup_Max = 75, nivInf_Min = 20;
 byte tempoRevesamento = 1, limpaErros = 0;
 byte stB1 = true, stB2 = true;
+bool limpaTela = false;
 
 void setup()
 {
@@ -200,6 +202,11 @@ void comunicacao()
         Serial.print("              PARTE HIGH(stB2): "); Serial.println(h);
         Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
         break;
+      case 206:
+        limpaTela = l;
+        Serial.print("              PARTE HIGH(stB2): "); Serial.println(h);
+        Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+        break;
     }
 
     //Aguarda a mensagem falsa
@@ -209,7 +216,7 @@ void comunicacao()
     erro = RS485.read();
     Serial.print("              mensagem falsa: "); Serial.println(erro); Serial.println("");
   }
-
+	zerarErroTela();
   atualizar();
   limpa_erro();
 }
@@ -469,209 +476,218 @@ void conf_padrao()
     EEPROM.write(i, 0);
 }
 
+void zerarErroTela()
+{
+	if(limpaTela)
+	{
+		EEPROM.write(8, 0);
+		EEPROM.write(9, '-');
+	}
+}
+
 void inicializacao()
 {
-  tempoRevesamento = EEPROM.read(1);
-  correnteMax = EEPROM.read(2);
-  tempMax = EEPROM.read(3);
-  bomba = EEPROM.read(6);
-  trava = EEPROM.read(7);
-  stB1 = EEPROM.read(10);
-  stB2 = EEPROM.read(11);
+	tempoRevesamento = EEPROM.read(1);
+	correnteMax = EEPROM.read(2);
+	tempMax = EEPROM.read(3);
+	bomba = EEPROM.read(6);
+	trava = EEPROM.read(7);
+	stB1 = EEPROM.read(10);
+	stB2 = EEPROM.read(11);
 }
 
 void atualizar()
 {
-  if (tempoRevesamento != EEPROM.read(1))
-    EEPROM.write(1, tempoRevesamento);
+	if (tempoRevesamento != EEPROM.read(1))
+		EEPROM.write(1, tempoRevesamento);
 
-  if (correnteMax != EEPROM.read(2))
-    EEPROM.write(2, correnteMax);
+	if (correnteMax != EEPROM.read(2))
+		EEPROM.write(2, correnteMax);
 
-  if (tempMax != EEPROM.read(3))
-    EEPROM.write(3, tempMax);
+	if (tempMax != EEPROM.read(3))
+		EEPROM.write(3, tempMax);
 
-  if (stB1 != EEPROM.read(10))
-    EEPROM.write(10, stB1);
+	if (stB1 != EEPROM.read(10))
+		EEPROM.write(10, stB1);
 
-  if (stB2 != EEPROM.read(11))
-    EEPROM.write(11, stB2);
+	if (stB2 != EEPROM.read(11))
+		EEPROM.write(11, stB2);
 }
 
 void limpa_erro()
 {
-  switch (limpaErros)
-  {
-    case 0:
-      //nao faz nada
-      break;
-    case 1:
-      EEPROM.write(4, ERROZERO);
-      trava = false;
-      break;
-    case 2:
-      EEPROM.write(5, ERROZERO);
-      trava = false;
-      break;
-    case 3:
-      EEPROM.write(4, ERROZERO);
-      EEPROM.write(5, ERROZERO);
-      trava = false;
-      break;
-  }
+	switch (limpaErros)
+	{
+		case 0:
+			//nao faz nada
+			break;
+		case 1:
+			EEPROM.write(4, ERROZERO);
+			trava = false;
+			break;
+		case 2:
+			EEPROM.write(5, ERROZERO);
+			trava = false;
+			break;
+		case 3:
+			EEPROM.write(4, ERROZERO);
+			EEPROM.write(5, ERROZERO);
+			trava = false;
+			break;
+	}
 
 
-  return;
+	return;
 }
 
 void somaErro(bool bombaPorta)
 {
-  byte x;
+	byte x;
 
-  x = EEPROM.read(bombaPorta + 4);
-  x++;
-  EEPROM.write(bombaPorta + 4, x);
+	x = EEPROM.read(bombaPorta + 4);
+	x++;
+	EEPROM.write(bombaPorta + 4, x);
 
-  return;
+	return;
 }
 
 float lerTemp1()
 {
-  byte i;
-  byte type_s;
-  byte data[12];
-  byte addr[8];
-  float celsius;
-  bool flag = true;
+	byte i;
+	byte type_s;
+	byte data[12];
+	byte addr[8];
+	float celsius;
+	bool flag = true;
 
-  do
-  {
-    dsTemp1.reset_search();
+	do
+	{
+		dsTemp1.reset_search();
 
-    if (!dsTemp1.search(addr))
-      return -1;
+		if (!dsTemp1.search(addr))
+			return -1;
 
-    if (OneWire::crc8(addr, 7) != addr[7])
-      continue;
+		if (OneWire::crc8(addr, 7) != addr[7])
+			continue;
 
-    type_s = chip(addr[0]);
+		type_s = chip(addr[0]);
 
-    if (type_s == -1)
-      return -1;
+		if (type_s == -1)
+			return -1;
 
-    dsTemp1.reset();
-    dsTemp1.select(addr);
-    dsTemp1.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
+		dsTemp1.reset();
+		dsTemp1.select(addr);
+		dsTemp1.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
 
-    delay(1000);
+		delay(1000);
 
-    if (dsTemp1.reset() == false)
-      return -1;
-    dsTemp1.select(addr);
-    dsTemp1.write(0xBE);         // Read Scratchpad
+		if (dsTemp1.reset() == false)
+			return -1;
+		dsTemp1.select(addr);
+		dsTemp1.write(0xBE);         // Read Scratchpad
 
-    for ( i = 0; i < 9; i++)    // we need 9 bytes
-      data[i] = dsTemp1.read();
-    if (OneWire::crc8(data, 8) != data[8])
-      continue;
+		for ( i = 0; i < 9; i++)    // we need 9 bytes
+			data[i] = dsTemp1.read();
+		if (OneWire::crc8(data, 8) != data[8])
+			continue;
 
-    flag = false;
+		flag = false;
 
-  } while (flag);
+	} while (flag);
 
-  int16_t raw = (data[1] << 8) | data[0];
+	int16_t raw = (data[1] << 8) | data[0];
 
-  celsius = conversao(raw, data, type_s);
+	celsius = conversao(raw, data, type_s);
 
-  return celsius;
+	return celsius;
 }
 
 float lerTemp2()
 {
-  byte i;
-  byte type_s;
-  byte data[12];
-  byte addr[8];
-  float celsius;
-  bool flag = true;
+	byte i;
+	byte type_s;
+	byte data[12];
+	byte addr[8];
+	float celsius;
+	bool flag = true;
 
-  do
-  {
-    dsTemp2.reset_search();
+	do
+	{
+		dsTemp2.reset_search();
 
-    if (!dsTemp2.search(addr))
-      return -1;
+		if (!dsTemp2.search(addr))
+			return -1;
 
-    if (OneWire::crc8(addr, 7) != addr[7])
-      continue;
+		if (OneWire::crc8(addr, 7) != addr[7])
+			continue;
 
-    type_s = chip(addr[0]);
+		type_s = chip(addr[0]);
 
-    if (type_s == -1)
-      return -1;
+		if (type_s == -1)
+			return -1;
 
-    dsTemp2.reset();
-    dsTemp2.select(addr);
-    dsTemp2.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
+		dsTemp2.reset();
+		dsTemp2.select(addr);
+		dsTemp2.write(0x44);        // start conversion, use ds.write(0x44,1) with parasite power on at the end
 
-    delay(1000);
+		delay(1000);
 
-    if (dsTemp2.reset() == false)
-      return -1;
-    dsTemp2.select(addr);
-    dsTemp2.write(0xBE);         // Read Scratchpad
+		if (dsTemp2.reset() == false)
+			return -1;
+		dsTemp2.select(addr);
+		dsTemp2.write(0xBE);         // Read Scratchpad
 
-    for ( i = 0; i < 9; i++)    // we need 9 bytes
-      data[i] = dsTemp2.read();
+		for ( i = 0; i < 9; i++)    // we need 9 bytes
+			data[i] = dsTemp2.read();
 
-    if (OneWire::crc8(data, 8) != data[8])
-      continue;
+		if (OneWire::crc8(data, 8) != data[8])
+			continue;
 
-    flag = false;
+		flag = false;
 
-  } while (flag);
+	} while (flag);
 
-  int16_t raw = (data[1] << 8) | data[0];
+	int16_t raw = (data[1] << 8) | data[0];
 
-  celsius = conversao(raw, data, type_s);
+	celsius = conversao(raw, data, type_s);
 
-  return celsius;
+	return celsius;
 }
 
 float conversao(int16_t raw, byte data[], byte type_s)
 {
-  if (type_s) {
-    raw = raw << 3; // 9 bit resolution default
-    if (data[7] == 0x10) {
-      raw = (raw & 0xFFF0) + 12 - data[6];
-    }
-  } else {
-    byte cfg = (data[4] & 0x60);
-    if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
-    else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
-    else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
-  }
-  return (float)raw / 16.0;
+	if (type_s) {
+		raw = raw << 3; // 9 bit resolution default
+		if (data[7] == 0x10) {
+			raw = (raw & 0xFFF0) + 12 - data[6];
+		}
+	} else {
+		byte cfg = (data[4] & 0x60);
+		if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
+		else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
+		else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
+	}
+	return (float)raw / 16.0;
 }
 
 byte chip(byte addr)
 {
-  byte type_s;
+	byte type_s;
 
-  switch (addr) {
-    case 0x10:
-      type_s = 1;
-      break;
-    case 0x28:
-      type_s = 0;
-      break;
-    case 0x22:
-      type_s = 0;
-      break;
-    default:
-      return -1;
-  }
-  return type_s;
+	switch (addr) {
+		case 0x10:
+			type_s = 1;
+			break;
+		case 0x28:
+			type_s = 0;
+			break;
+		case 0x22:
+			type_s = 0;
+			break;
+		default:
+			return -1;
+	}
+	return type_s;
 }
 
 
