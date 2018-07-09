@@ -35,6 +35,7 @@ SoftwareSerial RS485(SSerialRX, SSerialTX); // RX, TX
 void processo();
 void impressao();
 void comunicacao();
+void liberarTrava();
 void Transmite() ;
 void leitura();
 void controle();
@@ -146,6 +147,8 @@ void impressao()
   Serial.println(tempoRevesamento);
   Serial.print("Comando limpaErros: ");
   Serial.println(limpaErros);
+  Serial.print("Comando limpaTela: ");
+  Serial.println(limpaTela);
 }
 
 void comunicacao()
@@ -204,8 +207,8 @@ void comunicacao()
         break;
       case 206:
         limpaTela = l;
-        Serial.print("              PARTE HIGH(stB2): "); Serial.println(h);
-        Serial.print("              PARTE LOW(stB2): "); Serial.println(l);
+        Serial.print("              PARTE HIGH(Limpar Erro da Tela): "); Serial.println(h);
+        Serial.print("              PARTE LOW(Limpar Erro da Tela): "); Serial.println(l);
         break;
     }
 
@@ -219,6 +222,13 @@ void comunicacao()
 	zerarErroTela();
   atualizar();
   limpa_erro();
+  liberarTrava();
+}
+
+void liberarTrava()
+{
+	if (EEPROM.read(5) < ERROMAX && stB2 || EEPROM.read(4) < ERROMAX && stB1)
+		trava = false;
 }
 
 void Transmite()
@@ -288,154 +298,154 @@ void Transmite()
 void processo()
 {
 
-  leitura();
-  controle();
+	leitura();
+	controle();
 }
 
 void leitura()
 {
-  nivInf = analogRead(NV_I) / 4;
-  nivSup = analogRead(NV_S) / 4;
-  //tempB1 = lerTemp1()/4;
-  //tempB2 = lerTemp2()/4;
-  tempB1 = analogRead(TEMP1) / 4;
-  tempB2 = analogRead(TEMP2) / 4;
-  corrente = analogRead(CORRENTE_PORTA) / 4;
+	nivInf = analogRead(NV_I) / 4;
+	nivSup = analogRead(NV_S) / 4;
+	//tempB1 = lerTemp1()/4;
+	//tempB2 = lerTemp2()/4;
+	tempB1 = analogRead(TEMP1) / 4;
+	tempB2 = analogRead(TEMP2) / 4;
+	corrente = analogRead(CORRENTE_PORTA) / 4;
 
-  nivInf = map(nivInf, 0, 255, 0, 100);
-  nivSup = map(nivSup, 0, 255, 0, 100);
-  tempB1 = map(tempB1, 0, 255, 20, 100);
-  tempB2 = map(tempB2, 0, 255, 20, 100);
-  corrente = map(corrente, 0, 255, 0, 30);
+	nivInf = map(nivInf, 0, 255, 0, 100);
+	nivSup = map(nivSup, 0, 255, 0, 100);
+	tempB1 = map(tempB1, 0, 255, 20, 100);
+	tempB2 = map(tempB2, 0, 255, 20, 100);
+	corrente = map(corrente, 0, 255, 0, 30);
 }
 
 void controle()
 {
-  int intervalo = millis() - tempo;
+	int intervalo = millis() - tempo;
 
-  if (condicao() == false && trava == false)
-  {
-    somaErro(bomba);
-    trocaBomba();
-  }
-  if (aviso() == false)
-    ledErro(true);
-  else
-    ledErro(false);
+	if (condicao() == false && trava == false)
+	{
+		somaErro(bomba);
+		trocaBomba();
+	}
+	if (aviso() == false)
+		ledErro(true);
+	else
+		ledErro(false);
 
-  if (intervalo > TROCA * tempoRevesamento)
-    trocaBomba();
+	if (intervalo > TROCA * tempoRevesamento)
+		trocaBomba();
 }
 
 bool trocaBomba()
 {
-  //aqui vai ser um lugar onde as bombas sao trocadas apartir da verificação dos erros no eeprom
-  byte resposta;
+	//aqui vai ser um lugar onde as bombas sao trocadas apartir da verificação dos erros no eeprom
+	byte resposta;
 
-  if (bomba == 0)
-  {
-    if (EEPROM.read(5) < ERROMAX && stB2)
-      bomba = !bomba;
-    else
-    {
-      if (EEPROM.read(4) < ERROMAX && stB1)
-        bomba = bomba;
-      else
-        trava = true;
-    }
-  }
-  else if (bomba == 1)
-  {
-    if (EEPROM.read(4) < ERROMAX && stB1)
-      bomba = !bomba;
-    else
-    {
-      if (EEPROM.read(5) < ERROMAX && stB2)
-        bomba = bomba;
-      else
-        trava = true;
-    }
-  }
+	if (bomba == 0)
+	{
+		if (EEPROM.read(5) < ERROMAX && stB2)
+			bomba = !bomba;
+		else
+		{
+			if (EEPROM.read(4) < ERROMAX && stB1)
+				bomba = bomba;
+			else
+				trava = true;
+		}
+	}
+	else if (bomba == 1)
+	{
+		if (EEPROM.read(4) < ERROMAX && stB1)
+			bomba = !bomba;
+		else
+		{
+			if (EEPROM.read(5) < ERROMAX && stB2)
+				bomba = bomba;
+			else
+				trava = true;
+		}
+	}
 
-  releSeguranca(!trava);
-  releRevesamento();
+	releSeguranca(!trava);
+	releRevesamento();
 
-  EEPROM.write(6, bomba);
-  tempo = millis();
+	EEPROM.write(6, bomba);
+	tempo = millis();
 
-  return !trava; //retorna se o sistema ainda está em funcionamento
+	return !trava; //retorna se o sistema ainda está em funcionamento
 }
 
 void ledErro(bool erro)
 {
-  if (erro == true)
-    digitalWrite(ledE, HIGH);
-  else
-    digitalWrite(ledE, LOW);
+	if (erro == true)
+		digitalWrite(ledE, HIGH);
+	else
+		digitalWrite(ledE, LOW);
 
-  return;
+	return;
 }
 
 void releSeguranca(bool chave)
 {
-  if (chave == true)
-    digitalWrite(led1, HIGH);
-  else
-    digitalWrite(led1, LOW);
+	if (chave == true)
+		digitalWrite(led1, HIGH);
+	else
+		digitalWrite(led1, LOW);
 
-  return;
+	return;
 }
 
 void releRevesamento()
 {
-  if (bomba == 0)
-    digitalWrite(led0, HIGH);
-  else
-    digitalWrite(led0, LOW);
+	if (bomba == 0)
+		digitalWrite(led0, HIGH);
+	else
+		digitalWrite(led0, LOW);
 
-  return;
+	return;
 }
 
 bool condicao()
 {
-  bool cond;
+	bool cond;
 
-  if (bomba == 0 && tempB1 > tempMax)
-  {
-    cond = false;
-    EEPROM.write(8, bomba);
-    EEPROM.write(9, 'T');
-  }
-  else if (bomba == 1 && tempB2 > tempMax)
-  {
-    cond = false;
-    EEPROM.write(8, bomba);
-    EEPROM.write(9, 'T');
-  }
-  else if (corrente > correnteMax)
-  {
-    cond = false;
-    EEPROM.write(8, bomba);
-    EEPROM.write(9, 'C');
-  }
-  else
-    cond = true;
+	if (bomba == 0 && tempB1 > tempMax)
+	{
+		cond = false;
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'T');
+	}
+	else if (bomba == 1 && tempB2 > tempMax)
+	{
+		cond = false;
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'T');
+	}
+	else if (corrente > correnteMax)
+	{
+		cond = false;
+		EEPROM.write(8, bomba);
+		EEPROM.write(9, 'C');
+	}
+	else
+		cond = true;
 
-  return cond;
+	return cond;
 }
 
 bool aviso()
 {
-  bool cond;
+	bool cond;
 
-  if (nivSup > 75)// nivSup_Max)
-    cond = false;
-  else if (nivInf < 20)//	nivInf_Min)
-    cond = false;
-  else
-    cond = true;
+	if (nivSup > 75)// nivSup_Max)
+		cond = false;
+	else if (nivInf < 20)//	nivInf_Min)
+		cond = false;
+	else
+		cond = true;
 
-  return cond;
+	return cond;
 }
 
 /*
@@ -455,25 +465,25 @@ bool aviso()
 	 .
 	 .
 	 .
-*/
+ */
 
 void conf_padrao()
 {
-  EEPROM.write(1, TEMPODIAS);
-  EEPROM.write(2, CORRENTEMIN);
-  EEPROM.write(3, TEMPMAX);
-  EEPROM.write(4, ERROZERO);
-  EEPROM.write(5, ERROZERO);
-  EEPROM.write(7, false);
-  EEPROM.write(8, 0);
-  EEPROM.write(9, '-');
-  EEPROM.write(10, true);
-  EEPROM.write(11, true);
+	EEPROM.write(1, TEMPODIAS);
+	EEPROM.write(2, CORRENTEMIN);
+	EEPROM.write(3, TEMPMAX);
+	EEPROM.write(4, ERROZERO);
+	EEPROM.write(5, ERROZERO);
+	EEPROM.write(7, false);
+	EEPROM.write(8, 0);
+	EEPROM.write(9, '-');
+	EEPROM.write(10, true);
+	EEPROM.write(11, true);
 
-  inicializacao();
+	inicializacao();
 
-  for (int i = 100; i < 500; i++)
-    EEPROM.write(i, 0);
+	for (int i = 100; i < 500; i++)
+		EEPROM.write(i, 0);
 }
 
 void zerarErroTela()
