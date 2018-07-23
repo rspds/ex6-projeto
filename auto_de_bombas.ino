@@ -441,10 +441,18 @@ bool aviso()
   bool cond;
 
   if (nivSup > 75)// nivSup_Max)
+	{
     cond = false;
-  else if (nivInf < 20)// nivInf_Min)
-    cond = false;
-  else
+    EEPROM.write(8, 'N');
+    EEPROM.write(9, 'S');
+  }
+	else if (nivInf < 20)// nivInf_Min)
+  {
+    EEPROM.write(8, 'N');
+    EEPROM.write(9, 'I');
+		cond = false;
+  }
+	else
     cond = true;
 
   return cond;
