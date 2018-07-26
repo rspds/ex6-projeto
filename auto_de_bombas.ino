@@ -2,9 +2,10 @@
 #define led0 10
 #define led1 11
 #define ledE 12
-#define TEMP1 A2
+#define TEMP1 4
 #define TEMP2 5
 #define CORRENTE_PORTA A4
+#define SENSOR_DE_CORRENTE false
 #define VAZAO A5
 #define NV_S A0
 #define NV_I A1
@@ -16,7 +17,7 @@
 #define ERROMAX 2
 #define ERROZERO 0
 #define CORRENTEMAX 20
-#define TEMPERATURA_DIGITAL false
+#define TEMPERATURA_DIGITAL true
 #define SSerialRX        6  //Serial Receive pin
 #define SSerialTX        7  //Serial Transmit pin
 #define SSerialTxControl 3   //RS485 Direction control
@@ -25,11 +26,13 @@
 #define intervaloTransmissao           4000
 
 #include <OneWire.h>
+#include <EmonLib.h>
 #include <EEPROM.h>
 #include <SoftwareSerial.h> // incluindo biblioteca do mestre
 
 OneWire  dsTemp1(TEMP1);
 OneWire  dsTemp2(TEMP2);
+EnergyMonitor emon1;
 SoftwareSerial RS485(SSerialRX, SSerialTX); // RX, TX
 
 void processo();
@@ -81,6 +84,8 @@ void setup()
   Serial.begin(9600);
 
   RS485.begin(9600);
+
+  emon1.current(CORRENTE_PORTA, 29);
 
   delay(5000);
 
@@ -299,8 +304,16 @@ void leitura()
 {
   nivInf = analogRead(NV_I) / 4;
   nivSup = analogRead(NV_S) / 4;
-  corrente = analogRead(CORRENTE_PORTA) / 4;
-
+  if(SENSOR_DE_CORRENTE)
+  {
+    double Irms = emon1.calcIrms(1480);
+    corrente = (byte)Irms;
+  }
+  else
+  {
+    corrente = analogRead(CORRENTE_PORTA) / 4;
+    corrente = map(corrente, 0, 255, 0, 30);
+  }
   if (TEMPERATURA_DIGITAL)
   {
     tempB1 = lerTemp1();
@@ -314,11 +327,10 @@ void leitura()
     tempB1 = map(tempB1, 0, 255, 20, 100);
     tempB2 = map(tempB2, 0, 255, 20, 100);
   }
-  tempB2 = lerTemp2();
+  //tempB2 = lerTemp2();
 
   nivInf = map(nivInf, 0, 255, 0, 100);
   nivSup = map(nivSup, 0, 255, 0, 100);
-  corrente = map(corrente, 0, 255, 0, 30);
 }
 
 void controle()
@@ -708,4 +720,3 @@ byte chip(byte addr)
   }
   return type_s;
 }
-
